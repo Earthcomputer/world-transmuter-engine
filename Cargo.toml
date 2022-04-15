@@ -1,0 +1,15 @@
+[package]
+name = "rust_dfu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+hematite-nbt = {version = "0.5.2", optional = true, default-features = false}
+serde_json = {version = "1.0.79", optional = true, default-features = false}
+
+[features]
+default = ["std"]
+hematite-nbt = ["dep:hematite-nbt", "std"]
+serde_json = ["dep:serde_json"]
+std = []
