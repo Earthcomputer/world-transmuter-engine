@@ -1,12 +1,12 @@
-use crate::DataResult;
+use std::slice;
 
-pub trait Types {
+pub trait Types: 'static {
     type List : ListType<Self>;
     type Map : MapType<Self>;
     type Object : ObjectType<Self>;
 }
 
-pub trait ObjectType<T: Types + ?Sized>: PartialEq + Clone {
+pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone {
     fn create_byte(value: i8) -> Self;
     fn create_short(value: i16) -> Self;
     fn create_int(value: i32) -> Self;
@@ -23,6 +23,38 @@ pub trait ObjectType<T: Types + ?Sized>: PartialEq + Clone {
 
     fn as_ref(&self) -> ObjectRef<T>;
     fn as_ref_mut(&mut self) -> ObjectRefMut<T>;
+
+    fn as_i64(&self) -> Option<i64> {
+        self.as_ref().as_i64()
+    }
+
+    fn as_f64(&self) -> Option<f64> {
+        self.as_ref().as_f64()
+    }
+
+    fn as_string(&self) -> Option<&str> {
+        self.as_ref().into_string_ref()
+    }
+
+    fn as_string_mut(&mut self) -> Option<&mut str> {
+        self.as_ref_mut().into_string_ref()
+    }
+
+    fn as_list(&self) -> Option<&T::List> {
+        self.as_ref().into_list_ref()
+    }
+
+    fn as_list_mut(&mut self) -> Option<&mut T::List> {
+        self.as_ref_mut().into_list_ref()
+    }
+
+    fn as_map(&self) -> Option<&T::Map> {
+        self.as_ref().into_map_ref()
+    }
+
+    fn as_map_mut(&mut self) -> Option<&mut T::Map> {
+        self.as_ref_mut().into_map_ref()
+    }
 }
 
 macro_rules! object_ref_impl {
@@ -95,6 +127,29 @@ pub enum ObjectRef<'a, T: Types + ?Sized> {
 }
 object_ref_impl!(ObjectRef, |v: &&[_]| Vec::from(*v));
 
+impl<'a, T: Types + ?Sized> ObjectRef<'a, T> {
+    pub fn into_string_ref(self) -> Option<&'a str> {
+        match self {
+            Self::String(str) => Some(str),
+            _ => None
+        }
+    }
+
+    pub fn into_list_ref(self) -> Option<&'a T::List> {
+        match self {
+            Self::List(arr) => Some(arr),
+            _ => None
+        }
+    }
+
+    pub fn into_map_ref(self) -> Option<&'a T::Map> {
+        match self {
+            Self::Map(obj) => Some(obj),
+            _ => None
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ObjectRefMut<'a, T: Types + ?Sized> {
     Byte(i8),
@@ -113,8 +168,33 @@ pub enum ObjectRefMut<'a, T: Types + ?Sized> {
 }
 object_ref_impl!(ObjectRefMut, |v: &&mut Vec<_>| (*v).clone());
 
+impl<'a, T: Types + ?Sized> ObjectRefMut<'a, T> {
+    pub fn into_string_ref(self) -> Option<&'a mut str> {
+        match self {
+            Self::String(str) => Some(str),
+            _ => None
+        }
+    }
+
+    pub fn into_list_ref(self) -> Option<&'a mut T::List> {
+        match self {
+            Self::List(arr) => Some(arr),
+            _ => None
+        }
+    }
+
+    pub fn into_map_ref(self) -> Option<&'a mut T::Map> {
+        match self {
+            Self::Map(obj) => Some(obj),
+            _ => None
+        }
+    }
+}
+
 pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(String, T::Object)> {
-    type KeyIter<'a> where Self: 'a;
+    type KeyIter<'a> : Iterator<Item = &'a String> where Self: 'a;
+    type ValueIter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
+    type ValueIterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
 
     fn create_empty() -> Self;
 
@@ -122,11 +202,17 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(St
 
     fn has_key(&self, key: &str) -> bool;
 
+    fn values(&self) -> Self::ValueIter<'_>;
+
+    fn values_mut(&mut self) -> Self::ValueIterMut<'_>;
+
     fn get(&self, key: &str) -> Option<&T::Object>;
+
+    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object>;
 
     fn set(&mut self, key: String, value: T::Object);
 
-    fn remove(&mut self, key: &str);
+    fn remove(&mut self, key: &str) -> Option<T::Object>;
 
     fn clear(&mut self);
 
@@ -135,9 +221,50 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(St
     fn is_empty(&self) -> bool {
         self.size() == 0
     }
+
+    fn get_i64(&self, key: &str) -> Option<i64> {
+        self.get(key).and_then(T::Object::as_i64)
+    }
+
+    fn get_f64(&self, key: &str) -> Option<f64> {
+        self.get(key).and_then(T::Object::as_f64)
+    }
+
+    fn get_string(&self, key: &str) -> Option<&str> {
+        self.get(key).and_then(T::Object::as_string)
+    }
+
+    fn get_string_mut(&mut self, key: &str) -> Option<&mut str> {
+        self.get_mut(key).and_then(T::Object::as_string_mut)
+    }
+
+    fn get_list(&self, key: &str) -> Option<&T::List> {
+        self.get(key).and_then(T::Object::as_list)
+    }
+
+    fn get_list_mut(&mut self, key: &str) -> Option<&mut T::List> {
+        self.get_mut(key).and_then(T::Object::as_list_mut)
+    }
+
+    fn get_map(&self, key: &str) -> Option<&T::Map> {
+        self.get(key).and_then(T::Object::as_map)
+    }
+
+    fn get_map_mut(&mut self, key: &str) -> Option<&mut T::Map> {
+        self.get_mut(key).and_then(T::Object::as_map_mut)
+    }
+
+    fn rename_key(&mut self, from: &str, to: String) {
+        if let Some(value) = self.remove(from) {
+            self.set(to, value);
+        }
+    }
 }
 
-pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=T::Object> {
+pub trait ListType<T: Types + ?Sized> : PartialEq + Clone {
+    type Iter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
+    type IterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
+
     fn create_empty() -> Self;
 
     fn get(&self, index: usize) -> &T::Object;
@@ -153,9 +280,16 @@ pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=T:
     fn is_empty(&self) -> bool {
         self.size() == 0
     }
+
+    fn iter(&self) -> Self::Iter<'_>;
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_>;
 }
 
 impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
+    type Iter<'a> = impl Iterator<Item = &'a T::Object>;
+    type IterMut<'a> = impl Iterator<Item = &'a mut T::Object>;
+
     #[inline]
     fn create_empty() -> Self {
         Vec::new()
@@ -185,11 +319,22 @@ impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
     fn size(&self) -> usize {
         self.len()
     }
+
+    #[inline]
+    fn iter(&self) -> Self::Iter<'_> {
+        <&Vec<T::Object>>::into_iter(self)
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        <&mut Vec<T::Object>>::into_iter(self)
+    }
 }
 
-#[cfg(feature = "std")]
 impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> for std::collections::HashMap<String, T::Object, S> {
-    type KeyIter<'a> = impl IntoIterator<Item=&'a String> where Self: 'a;
+    type KeyIter<'a> = impl Iterator<Item=&'a String> where S: 'a;
+    type ValueIter<'a> = impl Iterator<Item=&'a T::Object> where S: 'a;
+    type ValueIterMut<'a> = impl Iterator<Item=&'a mut T::Object> where S: 'a;
 
     #[inline]
     fn create_empty() -> Self {
@@ -207,8 +352,23 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
+    fn values(&self) -> Self::ValueIter<'_> {
+        std::collections::HashMap::values(self)
+    }
+
+    #[inline]
+    fn values_mut(&mut self) -> Self::ValueIterMut<'_> {
+        std::collections::HashMap::values_mut(self)
+    }
+
+    #[inline]
     fn get(&self, key: &str) -> Option<&T::Object> {
         std::collections::HashMap::get(self, key)
+    }
+
+    #[inline]
+    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object> {
+        std::collections::HashMap::get_mut(self, key)
     }
 
     #[inline]
@@ -217,8 +377,8 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) {
-        std::collections::HashMap::remove(self, key);
+    fn remove(&mut self, key: &str) -> Option<T::Object> {
+        std::collections::HashMap::remove(self, key)
     }
 
     #[inline]
@@ -229,6 +389,68 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     #[inline]
     fn size(&self) -> usize {
         self.len()
+    }
+}
+
+#[cfg(feature = "indexmap")]
+impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> for indexmap::IndexMap<String, T::Object, S> {
+    type KeyIter<'a> = impl IntoIterator<Item=&'a String> where S: 'a;
+    type ValueIter<'a> = impl Iterator<Item=&'a T::Object> where S: 'a;
+    type ValueIterMut<'a> = impl Iterator<Item=&'a mut T::Object> where S: 'a;
+
+    #[inline]
+    fn create_empty() -> Self {
+        Default::default()
+    }
+
+    #[inline]
+    fn keys(&self) -> Self::KeyIter<'_> {
+        indexmap::IndexMap::keys(self)
+    }
+
+    #[inline]
+    fn has_key(&self, key: &str) -> bool {
+        indexmap::IndexMap::contains_key(self, key)
+    }
+
+    #[inline]
+    fn values(&self) -> Self::ValueIter<'_> {
+        indexmap::IndexMap::values(self)
+    }
+
+    #[inline]
+    fn values_mut(&mut self) -> Self::ValueIterMut<'_> {
+        indexmap::IndexMap::values_mut(self)
+    }
+
+    #[inline]
+    fn get(&self, key: &str) -> Option<&T::Object> {
+        indexmap::IndexMap::get(self, key)
+    }
+
+    #[inline]
+    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object> {
+        indexmap::IndexMap::get_mut(self, key)
+    }
+
+    #[inline]
+    fn set(&mut self, key: String, value: T::Object) {
+        indexmap::IndexMap::insert(self, key, value);
+    }
+
+    #[inline]
+    fn remove(&mut self, key: &str) -> Option<T::Object> {
+        indexmap::IndexMap::remove(self, key)
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        indexmap::IndexMap::clear(self);
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        indexmap::IndexMap::len(self)
     }
 }
 
@@ -244,7 +466,9 @@ impl Types for SerdeJsonTypes {
 
 #[cfg(feature = "serde_json")]
 impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
-    type KeyIter<'a> = impl IntoIterator<Item=&'a String> where T: 'a, S: 'a;
+    type KeyIter<'a> = impl IntoIterator<Item=&'a String>;
+    type ValueIter<'a> = impl IntoIterator<Item=&'a serde_json::Value>;
+    type ValueIterMut<'a> = impl IntoIterator<Item=&'a mut serde_json::Value>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -262,8 +486,23 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     }
 
     #[inline]
+    fn values(&self) -> Self::ValueIter<'_> {
+        serde_json::Map::values(self)
+    }
+
+    #[inline]
+    fn values_mut(&mut self) -> Self::ValueIterMut<'_> {
+        serde_json::Map::values_mut(self)
+    }
+
+    #[inline]
     fn get(&self, key: &str) -> Option<&serde_json::Value> {
         serde_json::Map::get(self, key)
+    }
+
+    #[inline]
+    fn get_mut(&mut self, key: &str) -> Option<&mut serde_json::Value> {
+        serde_json::Map::get_mut(self, key)
     }
 
     #[inline]
@@ -272,8 +511,8 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) {
-        serde_json::Map::remove(self, key);
+    fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
+        serde_json::Map::remove(self, key)
     }
 
     #[inline]
@@ -385,7 +624,7 @@ pub struct HematiteNbtTypes;
 #[cfg(feature = "hematite-nbt")]
 impl Types for HematiteNbtTypes {
     type List = Vec<nbt::Value>;
-    type Map = std::collections::HashMap<String, nbt::Value>;
+    type Map = nbt::Map<String, nbt::Value>;
     type Object = nbt::Value;
 }
 

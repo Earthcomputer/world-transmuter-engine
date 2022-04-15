@@ -5,11 +5,15 @@ edition = "2021"
 
 [dependencies]
 
+ahash = {version = "0.7.6", optional = true}
+hashbrown = {version = "0.12.0", optional = true}
 hematite-nbt = {version = "0.5.2", optional = true, default-features = false}
+indexmap = {version = "1.8.1", optional = true}
 serde_json = {version = "1.0.79", optional = true, default-features = false}
 
 [features]
-default = ["std"]
-hematite-nbt = ["dep:hematite-nbt", "std"]
+ahash = ["dep:ahash"]
+hashbrown = ["dep:hashbrown"]
+hematite-nbt = ["dep:hematite-nbt"]
+indexmap = ["dep:indexmap", "hematite-nbt/indexmap"]
 serde_json = ["dep:serde_json"]
-std = []
