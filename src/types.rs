@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+use std::hash::Hash;
 use std::slice;
 
 pub trait Types: 'static {
@@ -200,19 +202,19 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(St
 
     fn keys(&self) -> Self::KeyIter<'_>;
 
-    fn has_key(&self, key: &str) -> bool;
+    fn has_key<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> bool where String: Borrow<Q>;
 
     fn values(&self) -> Self::ValueIter<'_>;
 
     fn values_mut(&mut self) -> Self::ValueIterMut<'_>;
 
-    fn get(&self, key: &str) -> Option<&T::Object>;
+    fn get<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<&T::Object> where String: Borrow<Q>;
 
-    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object>;
+    fn get_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut T::Object> where String: Borrow<Q>;
 
-    fn set(&mut self, key: String, value: T::Object);
+    fn set(&mut self, key: impl Into<String>, value: T::Object);
 
-    fn remove(&mut self, key: &str) -> Option<T::Object>;
+    fn remove<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q>;
 
     fn clear(&mut self);
 
@@ -222,39 +224,39 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(St
         self.size() == 0
     }
 
-    fn get_i64(&self, key: &str) -> Option<i64> {
+    fn get_i64<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<i64> where String: Borrow<Q> {
         self.get(key).and_then(T::Object::as_i64)
     }
 
-    fn get_f64(&self, key: &str) -> Option<f64> {
+    fn get_f64<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<f64> where String: Borrow<Q> {
         self.get(key).and_then(T::Object::as_f64)
     }
 
-    fn get_string(&self, key: &str) -> Option<&str> {
+    fn get_string<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<&str> where String: Borrow<Q> {
         self.get(key).and_then(T::Object::as_string)
     }
 
-    fn get_string_mut(&mut self, key: &str) -> Option<&mut str> {
+    fn get_string_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut str> where String: Borrow<Q> {
         self.get_mut(key).and_then(T::Object::as_string_mut)
     }
 
-    fn get_list(&self, key: &str) -> Option<&T::List> {
+    fn get_list<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<&T::List> where String: Borrow<Q> {
         self.get(key).and_then(T::Object::as_list)
     }
 
-    fn get_list_mut(&mut self, key: &str) -> Option<&mut T::List> {
+    fn get_list_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut T::List> where String: Borrow<Q> {
         self.get_mut(key).and_then(T::Object::as_list_mut)
     }
 
-    fn get_map(&self, key: &str) -> Option<&T::Map> {
+    fn get_map<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<&T::Map> where String: Borrow<Q> {
         self.get(key).and_then(T::Object::as_map)
     }
 
-    fn get_map_mut(&mut self, key: &str) -> Option<&mut T::Map> {
+    fn get_map_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut T::Map> where String: Borrow<Q> {
         self.get_mut(key).and_then(T::Object::as_map_mut)
     }
 
-    fn rename_key(&mut self, from: &str, to: String) {
+    fn rename_key<Q: ?Sized + Hash + Eq + Ord>(&mut self, from: &Q, to: impl Into<String>) where String: Borrow<Q> {
         if let Some(value) = self.remove(from) {
             self.set(to, value);
         }
@@ -347,7 +349,7 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
-    fn has_key(&self, key: &str) -> bool {
+    fn has_key<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> bool where String: Borrow<Q> {
         self.contains_key(key)
     }
 
@@ -362,22 +364,22 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
-    fn get(&self, key: &str) -> Option<&T::Object> {
+    fn get<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> Option<&T::Object> where String: Borrow<Q> {
         std::collections::HashMap::get(self, key)
     }
 
     #[inline]
-    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object> {
+    fn get_mut<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<&mut T::Object> where String: Borrow<Q> {
         std::collections::HashMap::get_mut(self, key)
     }
 
     #[inline]
-    fn set(&mut self, key: String, value: T::Object) {
-        self.insert(key, value);
+    fn set(&mut self, key: impl Into<String>, value: T::Object) {
+        self.insert(key.into(), value);
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) -> Option<T::Object> {
+    fn remove<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q> {
         std::collections::HashMap::remove(self, key)
     }
 
@@ -409,7 +411,7 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
-    fn has_key(&self, key: &str) -> bool {
+    fn has_key<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> bool where String: Borrow<Q> {
         indexmap::IndexMap::contains_key(self, key)
     }
 
@@ -424,22 +426,22 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
-    fn get(&self, key: &str) -> Option<&T::Object> {
+    fn get<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> Option<&T::Object> where String: Borrow<Q> {
         indexmap::IndexMap::get(self, key)
     }
 
     #[inline]
-    fn get_mut(&mut self, key: &str) -> Option<&mut T::Object> {
+    fn get_mut<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<&mut T::Object> where String: Borrow<Q> {
         indexmap::IndexMap::get_mut(self, key)
     }
 
     #[inline]
-    fn set(&mut self, key: String, value: T::Object) {
-        indexmap::IndexMap::insert(self, key, value);
+    fn set(&mut self, key: impl Into<String>, value: T::Object) {
+        indexmap::IndexMap::insert(self, key.into(), value);
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) -> Option<T::Object> {
+    fn remove<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q> {
         indexmap::IndexMap::remove(self, key)
     }
 
@@ -481,7 +483,7 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     }
 
     #[inline]
-    fn has_key(&self, key: &str) -> bool {
+    fn has_key<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> bool where String: Borrow<Q> {
         serde_json::Map::contains_key(self, key)
     }
 
@@ -496,22 +498,22 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     }
 
     #[inline]
-    fn get(&self, key: &str) -> Option<&serde_json::Value> {
+    fn get<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<&serde_json::Value> where String: Borrow<Q> {
         serde_json::Map::get(self, key)
     }
 
     #[inline]
-    fn get_mut(&mut self, key: &str) -> Option<&mut serde_json::Value> {
+    fn get_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut serde_json::Value> where String: Borrow<Q> {
         serde_json::Map::get_mut(self, key)
     }
 
     #[inline]
-    fn set(&mut self, key: String, value: serde_json::Value) {
-        serde_json::Map::insert(self, key, value);
+    fn set(&mut self, key: impl Into<String>, value: serde_json::Value) {
+        serde_json::Map::insert(self, key.into(), value);
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
+    fn remove<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<serde_json::Value> where String: Borrow<Q> {
         serde_json::Map::remove(self, key)
     }
 
@@ -799,7 +801,7 @@ impl MapType<QuartzNbtTypes> for quartz_nbt::NbtCompound {
     }
 
     #[inline]
-    fn has_key(&self, key: &str) -> bool {
+    fn has_key<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> bool where String: Borrow<Q> {
         self.contains_key(key)
     }
 
@@ -813,21 +815,21 @@ impl MapType<QuartzNbtTypes> for quartz_nbt::NbtCompound {
         self.inner_mut().values_mut()
     }
 
-    fn get(&self, key: &str) -> Option<&quartz_nbt::NbtTag> {
-        quartz_nbt::NbtCompound::get(self, key).ok()
+    fn get<Q: ?Sized + Hash + Eq>(&self, key: &Q) -> Option<&quartz_nbt::NbtTag> where String: Borrow<Q> {
+        self.inner().get(key)
     }
 
-    fn get_mut(&mut self, key: &str) -> Option<&mut quartz_nbt::NbtTag> {
-        quartz_nbt::NbtCompound::get_mut(self, key).ok()
-    }
-
-    #[inline]
-    fn set(&mut self, key: String, value: quartz_nbt::NbtTag) {
-        quartz_nbt::NbtCompound::insert(self, key, value);
+    fn get_mut<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<&mut quartz_nbt::NbtTag> where String: Borrow<Q> {
+        self.inner_mut().get_mut(key)
     }
 
     #[inline]
-    fn remove(&mut self, key: &str) -> Option<quartz_nbt::NbtTag> {
+    fn set(&mut self, key: impl Into<String>, value: quartz_nbt::NbtTag) {
+        quartz_nbt::NbtCompound::insert(self, key.into(), value);
+    }
+
+    #[inline]
+    fn remove<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<quartz_nbt::NbtTag> where String: Borrow<Q> {
         self.inner_mut().remove(key)
     }
 
