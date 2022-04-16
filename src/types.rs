@@ -726,3 +726,219 @@ impl ObjectType<HematiteNbtTypes> for nbt::Value {
         }
     }
 }
+
+#[cfg(feature = "quartz_nbt")]
+pub struct QuartzNbtTypes;
+
+#[cfg(feature = "quartz_nbt")]
+impl Types for QuartzNbtTypes {
+    type List = quartz_nbt::NbtList;
+    type Map = quartz_nbt::NbtCompound;
+    type Object = quartz_nbt::NbtTag;
+}
+
+#[cfg(feature = "quartz_nbt")]
+impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
+    type Iter<'a> = impl Iterator<Item = &'a quartz_nbt::NbtTag>;
+    type IterMut<'a> = impl Iterator<Item = &'a mut quartz_nbt::NbtTag>;
+
+    #[inline]
+    fn create_empty() -> Self {
+        quartz_nbt::NbtList::new()
+    }
+
+    fn get(&self, index: usize) -> &quartz_nbt::NbtTag {
+        quartz_nbt::NbtList::get(self, index).expect("Index out of bounds")
+    }
+
+    #[inline]
+    fn set(&mut self, index: usize, value: quartz_nbt::NbtTag) {
+        self.inner_mut()[index] = value;
+    }
+
+    #[inline]
+    fn add(&mut self, value: crate::types::Object) {
+        quartz_nbt::NbtList::push(self, value)
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.inner_mut().clear()
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn iter(&self) -> Self::Iter<'_> {
+        <&quartz_nbt::NbtList>::into_iter(self)
+    }
+
+    #[inline]
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        <&mut quartz_nbt::NbtList>::into_iter(self)
+    }
+}
+
+#[cfg(feature = "quartz_nbt")]
+impl MapType<QuartzNbtTypes> for quartz_nbt::NbtCompound {
+    type KeyIter<'a> = impl Iterator<Item = &'a String>;
+    type ValueIter<'a> = impl Iterator<Item = &'a quartz_nbt::NbtTag>;
+    type ValueIterMut<'a> = impl Iterator<Item = &'a mut quartz_nbt::NbtTag>;
+
+    #[inline]
+    fn create_empty() -> Self {
+        quartz_nbt::NbtCompound::new()
+    }
+
+    #[inline]
+    fn keys(&self) -> Self::KeyIter<'_> {
+        self.inner().keys()
+    }
+
+    #[inline]
+    fn has_key(&self, key: &str) -> bool {
+        self.contains_key(key)
+    }
+
+    #[inline]
+    fn values(&self) -> Self::ValueIter<'_> {
+        self.inner().values()
+    }
+
+    #[inline]
+    fn values_mut(&mut self) -> Self::ValueIterMut<'_> {
+        self.inner_mut().values_mut()
+    }
+
+    fn get(&self, key: &str) -> Option<&quartz_nbt::NbtTag> {
+        quartz_nbt::NbtCompound::get(self, key).ok()
+    }
+
+    fn get_mut(&mut self, key: &str) -> Option<&mut quartz_nbt::NbtTag> {
+        quartz_nbt::NbtCompound::get_mut(self, key).ok()
+    }
+
+    #[inline]
+    fn set(&mut self, key: String, value: quartz_nbt::NbtTag) {
+        quartz_nbt::NbtCompound::insert(self, key, value);
+    }
+
+    #[inline]
+    fn remove(&mut self, key: &str) -> Option<quartz_nbt::NbtTag> {
+        self.inner_mut().remove(key)
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.inner_mut().clear()
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        self.len()
+    }
+}
+
+#[cfg(feature = "quartz_nbt")]
+impl ObjectType<QuartzNbtTypes> for quartz_nbt::NbtTag {
+    #[inline]
+    fn create_byte(value: i8) -> Self {
+        quartz_nbt::NbtTag::Byte(value)
+    }
+
+    #[inline]
+    fn create_short(value: i16) -> Self {
+        quartz_nbt::NbtTag::Short(value)
+    }
+
+    #[inline]
+    fn create_int(value: i32) -> Self {
+        quartz_nbt::NbtTag::Int(value)
+    }
+
+    #[inline]
+    fn create_long(value: i64) -> Self {
+        quartz_nbt::NbtTag::Long(value)
+    }
+
+    #[inline]
+    fn create_float(value: f32) -> Self {
+        quartz_nbt::NbtTag::Float(value)
+    }
+
+    #[inline]
+    fn create_double(value: f64) -> Self {
+        quartz_nbt::NbtTag::Double(value)
+    }
+
+    #[inline]
+    fn create_byte_array(value: Vec<i8>) -> Self {
+        quartz_nbt::NbtTag::ByteArray(value)
+    }
+
+    fn create_short_array(value: Vec<i16>) -> Self {
+        Self::create_int_array(value.into_iter().map(|s| s as i32).collect())
+    }
+
+    #[inline]
+    fn create_int_array(value: Vec<i32>) -> Self {
+        quartz_nbt::NbtTag::IntArray(value)
+    }
+
+    #[inline]
+    fn create_long_array(value: Vec<i64>) -> Self {
+        quartz_nbt::NbtTag::LongArray(value)
+    }
+
+    #[inline]
+    fn create_list(value: quartz_nbt::NbtList) -> Self {
+        quartz_nbt::NbtTag::List(value)
+    }
+
+    #[inline]
+    fn create_map(value: quartz_nbt::NbtCompound) -> Self {
+        quartz_nbt::NbtTag::Compound(value)
+    }
+
+    #[inline]
+    fn create_string(value: String) -> Self {
+        quartz_nbt::NbtTag::String(value)
+    }
+
+    fn as_ref(&self) -> ObjectRef<QuartzNbtTypes> {
+        match self {
+            quartz_nbt::NbtTag::Byte(v) => ObjectRef::Byte(*v),
+            quartz_nbt::NbtTag::Short(v) => ObjectRef::Short(*v),
+            quartz_nbt::NbtTag::Int(v) => ObjectRef::Int(*v),
+            quartz_nbt::NbtTag::Long(v) => ObjectRef::Long(*v),
+            quartz_nbt::NbtTag::Float(v) => ObjectRef::Float(*v),
+            quartz_nbt::NbtTag::Double(v) => ObjectRef::Double(*v),
+            quartz_nbt::NbtTag::ByteArray(v) => ObjectRef::ByteArray(v),
+            quartz_nbt::NbtTag::IntArray(v) => ObjectRef::IntArray(v),
+            quartz_nbt::NbtTag::LongArray(v) => ObjectRef::LongArray(v),
+            quartz_nbt::NbtTag::List(v) => ObjectRef::List(v),
+            quartz_nbt::NbtTag::Compound(v) => ObjectRef::Map(v),
+            quartz_nbt::NbtTag::String(v) => ObjectRef::String(v),
+        }
+    }
+
+    fn as_ref_mut(&mut self) -> ObjectRefMut<QuartzNbtTypes> {
+        match self {
+            quartz_nbt::NbtTag::Byte(v) => ObjectRefMut::Byte(*v),
+            quartz_nbt::NbtTag::Short(v) => ObjectRefMut::Short(*v),
+            quartz_nbt::NbtTag::Int(v) => ObjectRefMut::Int(*v),
+            quartz_nbt::NbtTag::Long(v) => ObjectRefMut::Long(*v),
+            quartz_nbt::NbtTag::Float(v) => ObjectRefMut::Float(*v),
+            quartz_nbt::NbtTag::Double(v) => ObjectRefMut::Double(*v),
+            quartz_nbt::NbtTag::ByteArray(v) => ObjectRefMut::ByteArray(v),
+            quartz_nbt::NbtTag::IntArray(v) => ObjectRefMut::IntArray(v),
+            quartz_nbt::NbtTag::LongArray(v) => ObjectRefMut::LongArray(v),
+            quartz_nbt::NbtTag::List(v) => ObjectRefMut::List(v),
+            quartz_nbt::NbtTag::Compound(v) => ObjectRefMut::Map(v),
+            quartz_nbt::NbtTag::String(v) => ObjectRefMut::String(v),
+        }
+    }
+}
