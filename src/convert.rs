@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::{MapType, ObjectRef, ObjectType, Types};
+use crate::{MapType, Types};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct DataVersion {
@@ -151,9 +151,11 @@ macro_rules! version_list {
     }
 }
 
+type DynDataConverterFunc<T> = Box<dyn DataConverterFunc<T>>;
+
 pub struct MapDataType<T: Types + ?Sized> {
     pub name: String,
-    structure_converters: Vec<DataConverter<T::Map, Box<dyn DataConverterFunc<T::Map>>>>,
+    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<T::Map>>>,
     structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T>>>>,
     structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map>>>>,
 }
@@ -223,7 +225,7 @@ impl<T: Types + ?Sized> DataType<T::Map> for MapDataType<T> {
 
 pub struct ObjectDataType<T: Types + ?Sized> {
     pub name: String,
-    converters: Vec<DataConverter<T::Object, Box<dyn DataConverterFunc<T::Object>>>>,
+    converters: Vec<DataConverter<T::Object, DynDataConverterFunc<T::Object>>>,
     structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Object>>>>,
 }
 structure_converters!(ObjectDataType, converters, T::Object);
@@ -269,19 +271,21 @@ impl<T: Types + ?Sized> DataType<T::Object> for ObjectDataType<T> {
     }
 }
 
+type WalkersById<T> = Vec<Rc<dyn DataWalker<T>>>;
+
 pub struct IdDataType<T: Types + ?Sized> {
     pub name: String,
-    structure_converters: Vec<DataConverter<T::Map, Box<dyn DataConverterFunc<T::Map>>>>,
+    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<T::Map>>>,
     structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T>>>>,
     structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map>>>>,
-    walkers_by_id: crate::Map<String, std::collections::BTreeMap<DataVersion, Vec<Rc<dyn DataWalker<T>>>>>,
+    walkers_by_id: crate::Map<String, std::collections::BTreeMap<DataVersion, WalkersById<T>>>,
 }
 structure_converters!(IdDataType, structure_converters, T::Map);
 version_list!(IdDataType, add_structure_walker, structure_walkers, Box<dyn DataWalker<T>>);
 version_list!(IdDataType, add_structure_hook, structure_hooks, Box<dyn DataHook<T::Map>>);
 
 impl<T: 'static + Types + ?Sized> IdDataType<T> {
-    fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             structure_converters: Vec::new(),
@@ -291,7 +295,7 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
         }
     }
 
-    fn add_converter_for_id(&mut self, id: impl Into<String>, version: impl Into<DataVersion>, converter_func: impl DataConverterFunc<T::Map> + 'static) {
+    pub fn add_converter_for_id(&mut self, id: impl Into<String>, version: impl Into<DataVersion>, converter_func: impl DataConverterFunc<T::Map> + 'static) {
         let id_str = id.into();
         self.add_structure_converter(
             version,
@@ -303,11 +307,11 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
         );
     }
 
-    fn add_walker_for_id(&mut self, version: impl Into<DataVersion>, id: impl Into<String>, walker: Rc<dyn DataWalker<T>>) {
+    pub fn add_walker_for_id(&mut self, version: impl Into<DataVersion>, id: impl Into<String>, walker: Rc<dyn DataWalker<T>>) {
         self.walkers_by_id.entry(id.into()).or_default().entry(version.into()).or_default().push(walker);
     }
 
-    fn copy_walkers(&mut self, version: impl Into<DataVersion> + Clone, from_id: &str, to_id: impl Into<String> + Clone) {
+    pub fn copy_walkers(&mut self, version: impl Into<DataVersion> + Clone, from_id: &str, to_id: impl Into<String> + Clone) {
         if let Some(from_versions) = self.walkers_by_id.get(from_id) {
             if let Some((_, from_walkers)) = from_versions.range(..=version.clone().into()).next_back() {
                 for walker in from_walkers.clone() {

@@ -1,6 +1,5 @@
 use std::borrow::Borrow;
 use std::hash::Hash;
-use std::slice;
 
 pub trait Types: 'static {
     type List : ListType<Self>;
