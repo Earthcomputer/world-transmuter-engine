@@ -265,7 +265,7 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
             structure_converters: Vec::new(),
             structure_walkers: std::collections::BTreeMap::new(),
             structure_hooks: std::collections::BTreeMap::new(),
-            walkers_by_id: crate::Map::new(),
+            walkers_by_id: crate::Map::default(),
         }
     }
 

@@ -394,7 +394,7 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
 
 #[cfg(feature = "indexmap")]
 impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> for indexmap::IndexMap<String, T::Object, S> {
-    type KeyIter<'a> = impl IntoIterator<Item=&'a String> where S: 'a;
+    type KeyIter<'a> = impl Iterator<Item=&'a String> where S: 'a;
     type ValueIter<'a> = impl Iterator<Item=&'a T::Object> where S: 'a;
     type ValueIterMut<'a> = impl Iterator<Item=&'a mut T::Object> where S: 'a;
 
@@ -466,9 +466,9 @@ impl Types for SerdeJsonTypes {
 
 #[cfg(feature = "serde_json")]
 impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
-    type KeyIter<'a> = impl IntoIterator<Item=&'a String>;
-    type ValueIter<'a> = impl IntoIterator<Item=&'a serde_json::Value>;
-    type ValueIterMut<'a> = impl IntoIterator<Item=&'a mut serde_json::Value>;
+    type KeyIter<'a> = impl Iterator<Item=&'a String>;
+    type ValueIter<'a> = impl Iterator<Item=&'a serde_json::Value>;
+    type ValueIterMut<'a> = impl Iterator<Item=&'a mut serde_json::Value>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -559,19 +559,19 @@ impl ObjectType<SerdeJsonTypes> for serde_json::Value {
     }
 
     fn create_byte_array(value: Vec<i8>) -> Self {
-        serde_json::Value::Array(value.iter().map(Self::create_byte).collect())
+        serde_json::Value::Array(value.into_iter().map(Self::create_byte).collect())
     }
 
     fn create_short_array(value: Vec<i16>) -> Self {
-        serde_json::Value::Array(value.iter().map(Self::create_short).collect())
+        serde_json::Value::Array(value.into_iter().map(Self::create_short).collect())
     }
 
     fn create_int_array(value: Vec<i32>) -> Self {
-        serde_json::Value::Array(value.iter().map(Self::create_int).collect())
+        serde_json::Value::Array(value.into_iter().map(Self::create_int).collect())
     }
 
     fn create_long_array(value: Vec<i64>) -> Self {
-        serde_json::Value::Array(value.iter().map(Self::create_long).collect())
+        serde_json::Value::Array(value.into_iter().map(Self::create_long).collect())
     }
 
     #[inline]
@@ -598,7 +598,7 @@ impl ObjectType<SerdeJsonTypes> for serde_json::Value {
             serde_json::Value::Array(arr) => ObjectRef::List(arr),
             serde_json::Value::Object(obj) => ObjectRef::Map(obj),
             serde_json::Value::String(str) => ObjectRef::String(str),
-            serde_json::Value::Bool(b) => ObjectRef::Byte(if b {1} else {0}),
+            serde_json::Value::Bool(b) => ObjectRef::Byte(if *b {1} else {0}),
             serde_json::Value::Null => ObjectRef::Byte(0)
         }
     }
@@ -612,7 +612,7 @@ impl ObjectType<SerdeJsonTypes> for serde_json::Value {
             serde_json::Value::Array(arr) => ObjectRefMut::List(arr),
             serde_json::Value::Object(obj) => ObjectRefMut::Map(obj),
             serde_json::Value::String(str) => ObjectRefMut::String(str),
-            serde_json::Value::Bool(b) => ObjectRefMut::Byte(if b {1} else {0}),
+            serde_json::Value::Bool(b) => ObjectRefMut::Byte(if *b {1} else {0}),
             serde_json::Value::Null => ObjectRefMut::Byte(0)
         }
     }
@@ -666,7 +666,7 @@ impl ObjectType<HematiteNbtTypes> for nbt::Value {
     }
 
     fn create_short_array(value: Vec<i16>) -> Self {
-        nbt::Value::IntArray(value.iter().map(|i| *i as i32).collect())
+        nbt::Value::IntArray(value.into_iter().map(|i| i as i32).collect())
     }
 
     #[inline]
@@ -757,7 +757,7 @@ impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
     }
 
     #[inline]
-    fn add(&mut self, value: crate::types::Object) {
+    fn add(&mut self, value: quartz_nbt::NbtTag) {
         quartz_nbt::NbtList::push(self, value)
     }
 

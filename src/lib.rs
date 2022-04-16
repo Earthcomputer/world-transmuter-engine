@@ -20,5 +20,20 @@ pub use crate::types::*;
 pub use crate::utils::*;
 
 #[cfg(test)]
+#[cfg(feature = "quartz_nbt")]
 mod tests {
+    use quartz_nbt::snbt;
+    use crate::{MapType, QuartzNbtTypes, Types};
+
+    fn make_map(string: &str) -> impl MapType<QuartzNbtTypes> {
+        snbt::parse(string).expect("snbt syntax error")
+    }
+
+    #[test]
+    fn rename_key() {
+        let mut map = make_map("{\"hello\": \"world\"}");
+        map.rename_key("hello", "Hello".to_owned());
+        assert!(map.has_key("Hello"));
+        assert!(!map.has_key("hello"));
+    }
 }
