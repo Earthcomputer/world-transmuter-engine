@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(42, map2.get_i64("test").unwrap());
     }
 
-    fn simple_converted_type<T: Types + ?Sized>() -> MapDataType<T> {
+    fn simple_converted_type<'a, T: Types + ?Sized>() -> MapDataType<'a, T> {
         let mut ret = MapDataType::new("Test");
         ret.add_structure_converter(1, data_converter_func::<T::Map, _>(|data, _from_version, _to_version| {
             if let Some(i) = data.get_i64("test") {

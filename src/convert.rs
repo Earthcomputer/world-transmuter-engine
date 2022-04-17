@@ -35,8 +35,8 @@ pub trait DataConverterFunc<T> {
     fn convert(&self, data: &mut T, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn data_converter_func<T, F>(func: F) -> impl DataConverterFunc<T>
-    where F: Fn(&mut T, DataVersion, DataVersion)
+pub fn data_converter_func<'a, T, F>(func: F) -> impl DataConverterFunc<T> + 'a
+    where F: Fn(&mut T, DataVersion, DataVersion) + 'a
 {
     struct DataConverterFuncImpl<F>(F);
     impl<T, F> DataConverterFunc<T> for DataConverterFuncImpl<F>
@@ -126,8 +126,8 @@ impl<T, U: DataType<T>> DataType<T> for &U {
 
 macro_rules! structure_converters {
     ($ty:ident, $field_name:ident, $converted_type:ty) => {
-        impl<T: Types + ?Sized> $ty<T> {
-            pub fn add_structure_converter(&mut self, version: impl Into<DataVersion>, func: impl DataConverterFunc<$converted_type> + 'static) {
+        impl<'a, T: Types + ?Sized> $ty<'a, T> {
+            pub fn add_structure_converter(&mut self, version: impl Into<DataVersion>, func: impl DataConverterFunc<$converted_type> + 'a) {
                 let dyn_box: Box<dyn DataConverterFunc<$converted_type>> = Box::new(func);
                 let converter = DataConverter::new(version, dyn_box);
                 let index = self.$field_name.binary_search(&converter);
@@ -143,7 +143,7 @@ macro_rules! structure_converters {
 
 macro_rules! version_list {
     ($ty:ident, $method_name:ident, $field_name:ident, $element_type:ty) => {
-        impl<T: Types + ?Sized> $ty<T> {
+        impl<'a, T: Types + ?Sized> $ty<'a, T> {
             pub fn $method_name(&mut self, version: impl Into<DataVersion>, value: $element_type) {
                 self.$field_name.entry(version.into()).or_default().push(Box::new(value));
             }
@@ -151,18 +151,18 @@ macro_rules! version_list {
     }
 }
 
-type DynDataConverterFunc<T> = Box<dyn DataConverterFunc<T>>;
+type DynDataConverterFunc<'a, T> = Box<dyn DataConverterFunc<T> + 'a>;
 
-pub struct MapDataType<T: Types + ?Sized> {
+pub struct MapDataType<'a, T: Types + ?Sized> {
     pub name: String,
-    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<T::Map>>>,
-    structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T>>>>,
-    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map>>>>,
+    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<'a, T::Map>>>,
+    structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T> + 'a>>>,
+    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map> + 'a>>>,
 }
 structure_converters!(MapDataType, structure_converters, T::Map);
-version_list!(MapDataType, add_structure_walker, structure_walkers, impl DataWalker<T> + 'static);
-version_list!(MapDataType, add_structure_hook, structure_hooks, impl DataHook<T::Map> + 'static);
-impl<T: Types + ?Sized> MapDataType<T> {
+version_list!(MapDataType, add_structure_walker, structure_walkers, impl DataWalker<T> + 'a);
+version_list!(MapDataType, add_structure_hook, structure_hooks, impl DataHook<T::Map> + 'a);
+impl<'a, T: Types + ?Sized> MapDataType<'a, T> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -173,7 +173,7 @@ impl<T: Types + ?Sized> MapDataType<T> {
     }
 }
 
-impl<T: Types + ?Sized> DataType<T::Map> for MapDataType<T> {
+impl<'a, T: Types + ?Sized> DataType<T::Map> for MapDataType<'a, T> {
     fn convert(&self, data: &mut T::Map, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
             if converter.get_to_version() <= from_version {
@@ -223,15 +223,15 @@ impl<T: Types + ?Sized> DataType<T::Map> for MapDataType<T> {
     }
 }
 
-pub struct ObjectDataType<T: Types + ?Sized> {
+pub struct ObjectDataType<'a, T: Types + ?Sized> {
     pub name: String,
-    converters: Vec<DataConverter<T::Object, DynDataConverterFunc<T::Object>>>,
-    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Object>>>>,
+    converters: Vec<DataConverter<T::Object, DynDataConverterFunc<'a, T::Object>>>,
+    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Object> + 'a>>>,
 }
 structure_converters!(ObjectDataType, converters, T::Object);
-version_list!(ObjectDataType, add_structure_hook, structure_hooks, impl DataHook<T::Object> + 'static);
+version_list!(ObjectDataType, add_structure_hook, structure_hooks, impl DataHook<T::Object> + 'a);
 
-impl<T: Types + ?Sized> ObjectDataType<T> {
+impl<'a, T: Types + ?Sized> ObjectDataType<'a, T> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -241,7 +241,7 @@ impl<T: Types + ?Sized> ObjectDataType<T> {
     }
 }
 
-impl<T: Types + ?Sized> DataType<T::Object> for ObjectDataType<T> {
+impl<'a, T: Types + ?Sized> DataType<T::Object> for ObjectDataType<'a, T> {
     fn convert(&self, data: &mut T::Object, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.converters {
             if converter.get_to_version() <= from_version {
@@ -271,20 +271,20 @@ impl<T: Types + ?Sized> DataType<T::Object> for ObjectDataType<T> {
     }
 }
 
-type WalkersById<T> = Vec<Rc<dyn DataWalker<T>>>;
+type WalkersById<'a, T> = Vec<Rc<dyn DataWalker<T> + 'a>>;
 
-pub struct IdDataType<T: Types + ?Sized> {
+pub struct IdDataType<'a, T: Types + ?Sized> {
     pub name: String,
-    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<T::Map>>>,
-    structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T>>>>,
-    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map>>>>,
-    walkers_by_id: crate::Map<String, std::collections::BTreeMap<DataVersion, WalkersById<T>>>,
+    structure_converters: Vec<DataConverter<T::Map, DynDataConverterFunc<'a, T::Map>>>,
+    structure_walkers: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataWalker<T> + 'a>>>,
+    structure_hooks: std::collections::BTreeMap<DataVersion, Vec<Box<dyn DataHook<T::Map> + 'a>>>,
+    walkers_by_id: crate::Map<String, std::collections::BTreeMap<DataVersion, WalkersById<'a, T>>>,
 }
 structure_converters!(IdDataType, structure_converters, T::Map);
-version_list!(IdDataType, add_structure_walker, structure_walkers, impl DataWalker<T> + 'static);
-version_list!(IdDataType, add_structure_hook, structure_hooks, impl DataHook<T::Map> + 'static);
+version_list!(IdDataType, add_structure_walker, structure_walkers, impl DataWalker<T> + 'a);
+version_list!(IdDataType, add_structure_hook, structure_hooks, impl DataHook<T::Map> + 'a);
 
-impl<T: 'static + Types + ?Sized> IdDataType<T> {
+impl<'a, T: 'static + Types + ?Sized> IdDataType<'a, T> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -295,7 +295,7 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
         }
     }
 
-    pub fn add_converter_for_id(&mut self, id: impl Into<String>, version: impl Into<DataVersion>, converter_func: impl DataConverterFunc<T::Map> + 'static) {
+    pub fn add_converter_for_id(&mut self, id: impl Into<String>, version: impl Into<DataVersion>, converter_func: impl DataConverterFunc<T::Map> + 'a) {
         let id_str = id.into();
         self.add_structure_converter(
             version,
@@ -307,7 +307,7 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
         );
     }
 
-    pub fn add_walker_for_id(&mut self, version: impl Into<DataVersion>, id: impl Into<String>, walker: impl DataWalker<T> + 'static) {
+    pub fn add_walker_for_id(&mut self, version: impl Into<DataVersion>, id: impl Into<String>, walker: impl DataWalker<T> + 'a) {
         self.walkers_by_id.entry(id.into()).or_default().entry(version.into()).or_default().push(Rc::new(walker));
     }
 
@@ -322,7 +322,7 @@ impl<T: 'static + Types + ?Sized> IdDataType<T> {
     }
 }
 
-impl<T: Types + ?Sized> DataType<T::Map> for IdDataType<T> {
+impl<'a, T: Types + ?Sized> DataType<T::Map> for IdDataType<'a, T> {
     fn convert(&self, data: &mut T::Map, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
             if converter.get_to_version() <= from_version {
@@ -397,8 +397,8 @@ pub trait DataWalker<T: Types + ?Sized> {
     fn walk(&self, data: &mut T::Map, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn data_walker<T, F>(func: F) -> impl DataWalker<T>
-    where T: Types + ?Sized, F: Fn(&mut T::Map, DataVersion, DataVersion)
+pub fn data_walker<'a, T, F>(func: F) -> impl DataWalker<T> + 'a
+    where T: Types + ?Sized, F: Fn(&mut T::Map, DataVersion, DataVersion) + 'a
 {
     struct DataWalkerImpl<F>(F);
     impl<T, F> DataWalker<T> for DataWalkerImpl<F>

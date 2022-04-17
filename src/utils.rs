@@ -9,7 +9,7 @@ pub struct DataWalkerObjectListPaths<T, U>
     paths: Vec<String>,
 }
 
-impl<T, U> DataWalkerObjectListPaths<T, U>
+impl<'a, T, U> DataWalkerObjectListPaths<T, U>
     where T: DataType<U::Object>, U: Types + ?Sized
 {
     pub fn new(typ: T, path: impl Into<String>) -> Self {
