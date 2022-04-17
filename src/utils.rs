@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use crate::{DataType, DataVersion, ListType, MapType, Types, ObjectType, DataWalker};
 
-pub struct DataWalkerListPaths<T, U>
+pub struct DataWalkerObjectListPaths<T, U>
     where T: DataType<U::Object>, U: Types + ?Sized
 {
     phantom: PhantomData<U>,
@@ -9,11 +9,11 @@ pub struct DataWalkerListPaths<T, U>
     paths: Vec<String>,
 }
 
-impl<T, U> DataWalkerListPaths<T, U>
+impl<T, U> DataWalkerObjectListPaths<T, U>
     where T: DataType<U::Object>, U: Types + ?Sized
 {
-    pub fn new(typ: T, path: String) -> Self {
-        Self::new_multi(typ, vec![path])
+    pub fn new(typ: T, path: impl Into<String>) -> Self {
+        Self::new_multi(typ, vec![path.into()])
     }
 
     pub fn new_multi(typ: T, paths: Vec<String>) -> Self {
@@ -21,7 +21,7 @@ impl<T, U> DataWalkerListPaths<T, U>
     }
 }
 
-impl<T, U> DataWalker<U> for DataWalkerListPaths<T, U>
+impl<T, U> DataWalker<U> for DataWalkerObjectListPaths<T, U>
     where T: DataType<U::Object>, U: Types + ?Sized
 {
     fn walk(&self, data: &mut U::Map, from_version: DataVersion, to_version: DataVersion) {
@@ -31,19 +31,19 @@ impl<T, U> DataWalker<U> for DataWalkerListPaths<T, U>
     }
 }
 
-pub struct DataWalkerTypePaths<T, U>
-    where T: DataType<U::Object>, U: Types + ?Sized
+pub struct DataWalkerMapListPaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
 {
     phantom: PhantomData<U>,
     typ: T,
     paths: Vec<String>,
 }
 
-impl<T, U> DataWalkerTypePaths<T, U>
-    where T: DataType<U::Object>, U: Types + ?Sized
+impl<T, U> DataWalkerMapListPaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
 {
-    pub fn new(typ: T, path: String) -> Self {
-        Self::new_multi(typ, vec![path])
+    pub fn new(typ: T, path: impl Into<String>) -> Self {
+        Self::new_multi(typ, vec![path.into()])
     }
 
     pub fn new_multi(typ: T, paths: Vec<String>) -> Self {
@@ -51,12 +51,72 @@ impl<T, U> DataWalkerTypePaths<T, U>
     }
 }
 
-impl<T, U> DataWalker<U> for DataWalkerTypePaths<T, U>
+impl<T, U> DataWalker<U> for DataWalkerMapListPaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
+{
+    fn walk(&self, data: &mut U::Map, from_version: DataVersion, to_version: DataVersion) {
+        for path in &self.paths {
+            convert_map_list_in_map::<_, U>(&self.typ, data, path, from_version, to_version);
+        }
+    }
+}
+
+pub struct DataWalkerObjectTypePaths<T, U>
+    where T: DataType<U::Object>, U: Types + ?Sized
+{
+    phantom: PhantomData<U>,
+    typ: T,
+    paths: Vec<String>,
+}
+
+impl<T, U> DataWalkerObjectTypePaths<T, U>
+    where T: DataType<U::Object>, U: Types + ?Sized
+{
+    pub fn new(typ: T, path: impl Into<String>) -> Self {
+        Self::new_multi(typ, vec![path.into()])
+    }
+
+    pub fn new_multi(typ: T, paths: Vec<String>) -> Self {
+        Self { phantom: PhantomData, typ, paths }
+    }
+}
+
+impl<T, U> DataWalker<U> for DataWalkerObjectTypePaths<T, U>
     where T: DataType<U::Object>, U: Types + ?Sized
 {
     fn walk(&self, data: &mut U::Map, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
             convert_object_in_map::<_, U>(&self.typ, data, path, from_version, to_version);
+        }
+    }
+}
+
+pub struct DataWalkerMapTypePaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
+{
+    phantom: PhantomData<U>,
+    typ: T,
+    paths: Vec<String>,
+}
+
+impl<T, U> DataWalkerMapTypePaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
+{
+    pub fn new(typ: T, path: impl Into<String>) -> Self {
+        Self::new_multi(typ, vec![path.into()])
+    }
+
+    pub fn new_multi(typ: T, paths: Vec<String>) -> Self {
+        Self { phantom: PhantomData, typ, paths }
+    }
+}
+
+impl<T, U> DataWalker<U> for DataWalkerMapTypePaths<T, U>
+    where T: DataType<U::Map>, U: Types + ?Sized
+{
+    fn walk(&self, data: &mut U::Map, from_version: DataVersion, to_version: DataVersion) {
+        for path in &self.paths {
+            convert_map_in_map::<_, U>(&self.typ, data, path, from_version, to_version);
         }
     }
 }
