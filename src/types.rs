@@ -7,7 +7,7 @@ pub trait Types: 'static {
     type Object : ObjectType<Self>;
 }
 
-pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone {
+pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt::Debug {
     fn create_byte(value: i8) -> Self;
     fn create_short(value: i16) -> Self;
     fn create_int(value: i32) -> Self;
@@ -192,7 +192,7 @@ impl<'a, T: Types + ?Sized> ObjectRefMut<'a, T> {
     }
 }
 
-pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(String, T::Object)> {
+pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + IntoIterator<Item=(String, T::Object)> {
     type KeyIter<'a> : Iterator<Item = &'a String> where Self: 'a;
     type ValueIter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
     type ValueIterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
@@ -262,7 +262,7 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + IntoIterator<Item=(St
     }
 }
 
-pub trait ListType<T: Types + ?Sized> : PartialEq + Clone {
+pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
     type Iter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
     type IterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
 
