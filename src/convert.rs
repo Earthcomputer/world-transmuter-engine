@@ -124,6 +124,12 @@ impl<T, U: DataType<T>> DataType<T> for &U {
     }
 }
 
+impl<T, U: DataType<T>> DataType<T> for core::cell::RefCell<U> {
+    fn convert(&self, data: &mut T, from_version: DataVersion, to_version: DataVersion) {
+        U::convert(&*self.borrow(), data, from_version, to_version);
+    }
+}
+
 macro_rules! structure_converters {
     ($ty:ident, $field_name:ident, $converted_type:ty) => {
         impl<'a, T: Types + ?Sized> $ty<'a, T> {
