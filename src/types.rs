@@ -260,6 +260,25 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
             self.set(to, value);
         }
     }
+
+    fn get_mut_multi<Q: ?Sized + Hash + Eq + Ord, const N: usize>(&mut self, keys: [&Q; N]) -> [Option<&mut T::Object>; N]
+        where String: Borrow<Q>
+    {
+        unsafe {
+            let results = keys.map(|key| self.get_mut(key).map(|v| v as *mut _));
+            // This check is necessary for safety, cannot mutably borrow more than once
+            for i in 0..N-1 {
+                let a = results[i];
+                if a.is_some() {
+                    for j in i+1..N {
+                        let b = results[j];
+                        assert_ne!(a, b, "Values in map are not unique, cannot provide multiple mutable references");
+                    }
+                }
+            }
+            results.map(|r| r.map(|v| &mut *v))
+        }
+    }
 }
 
 pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
