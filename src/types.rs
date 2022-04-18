@@ -284,6 +284,7 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
 pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
     type Iter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
     type IterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
+    type IntoIter : Iterator<Item = T::Object>;
 
     fn create_empty() -> Self;
 
@@ -304,11 +305,14 @@ pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
     fn iter(&self) -> Self::Iter<'_>;
 
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
+
+    fn into_iter(self) -> Self::IntoIter;
 }
 
 impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
     type Iter<'a> = impl Iterator<Item = &'a T::Object>;
     type IterMut<'a> = impl Iterator<Item = &'a mut T::Object>;
+    type IntoIter = impl Iterator<Item = T::Object>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -348,6 +352,11 @@ impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
     #[inline]
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         <&mut Vec<T::Object>>::into_iter(self)
+    }
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        <Vec<T::Object> as IntoIterator>::into_iter(self)
     }
 }
 
@@ -579,19 +588,19 @@ impl ObjectType<SerdeJsonTypes> for serde_json::Value {
     }
 
     fn create_byte_array(value: Vec<i8>) -> Self {
-        serde_json::Value::Array(value.into_iter().map(Self::create_byte).collect())
+        serde_json::Value::Array(IntoIterator::into_iter(value).into_iter().map(Self::create_byte).collect())
     }
 
     fn create_short_array(value: Vec<i16>) -> Self {
-        serde_json::Value::Array(value.into_iter().map(Self::create_short).collect())
+        serde_json::Value::Array(IntoIterator::into_iter(value).map(Self::create_short).collect())
     }
 
     fn create_int_array(value: Vec<i32>) -> Self {
-        serde_json::Value::Array(value.into_iter().map(Self::create_int).collect())
+        serde_json::Value::Array(IntoIterator::into_iter(value).map(Self::create_int).collect())
     }
 
     fn create_long_array(value: Vec<i64>) -> Self {
-        serde_json::Value::Array(value.into_iter().map(Self::create_long).collect())
+        serde_json::Value::Array(IntoIterator::into_iter(value).map(Self::create_long).collect())
     }
 
     #[inline]
@@ -686,7 +695,7 @@ impl ObjectType<HematiteNbtTypes> for nbt::Value {
     }
 
     fn create_short_array(value: Vec<i16>) -> Self {
-        nbt::Value::IntArray(value.into_iter().map(|i| i as i32).collect())
+        nbt::Value::IntArray(IntoIterator::into_iter(value).map(|i| i as i32).collect())
     }
 
     #[inline]
@@ -761,6 +770,7 @@ impl Types for QuartzNbtTypes {
 impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
     type Iter<'a> = impl Iterator<Item = &'a quartz_nbt::NbtTag>;
     type IterMut<'a> = impl Iterator<Item = &'a mut quartz_nbt::NbtTag>;
+    type IntoIter = impl Iterator<Item = quartz_nbt::NbtTag>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -799,6 +809,10 @@ impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
     #[inline]
     fn iter_mut(&mut self) -> Self::IterMut<'_> {
         <&mut quartz_nbt::NbtList>::into_iter(self)
+    }
+
+    fn into_iter(self) -> Self::IntoIter {
+        <quartz_nbt::NbtList as IntoIterator>::into_iter(self)
     }
 }
 
@@ -900,7 +914,7 @@ impl ObjectType<QuartzNbtTypes> for quartz_nbt::NbtTag {
     }
 
     fn create_short_array(value: Vec<i16>) -> Self {
-        Self::create_int_array(value.into_iter().map(|s| s as i32).collect())
+        Self::create_int_array(IntoIterator::into_iter(value).map(|s| s as i32).collect())
     }
 
     #[inline]
