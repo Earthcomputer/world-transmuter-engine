@@ -22,6 +22,7 @@ pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt
     fn create_map(value: T::Map) -> Self;
     fn create_string(value: String) -> Self;
 
+    fn to_owned(self) -> ObjectOwned<T>;
     fn as_ref(&self) -> ObjectRef<T>;
     fn as_ref_mut(&mut self) -> ObjectRefMut<T>;
 
@@ -41,12 +42,20 @@ pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt
         self.as_ref_mut().into_string_ref()
     }
 
+    fn into_string(self) -> Option<String> {
+        self.to_owned().into_string()
+    }
+
     fn as_list(&self) -> Option<&T::List> {
         self.as_ref().into_list_ref()
     }
 
     fn as_list_mut(&mut self) -> Option<&mut T::List> {
         self.as_ref_mut().into_list_ref()
+    }
+
+    fn into_list(self) -> Option<T::List> {
+        self.to_owned().into_list()
     }
 
     fn as_map(&self) -> Option<&T::Map> {
@@ -56,11 +65,15 @@ pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt
     fn as_map_mut(&mut self) -> Option<&mut T::Map> {
         self.as_ref_mut().into_map_ref()
     }
+
+    fn into_map(self) -> Option<T::Map> {
+        self.to_owned().into_map()
+    }
 }
 
 macro_rules! object_ref_impl {
-    ($ref_type:ident, $copy_vec:expr) => {
-        impl<'a, T: Types + ?Sized> $ref_type<'a, T> {
+    ($ref_type:ident, $copy_vec:expr $(, $lifetime:tt)?) => {
+        impl<$($lifetime,)? T: Types + ?Sized> $ref_type<$($lifetime,)? T> {
             pub fn is_number(&self) -> bool {
                 matches!(self, Self::Byte(_) | Self::Short(_) | Self::Int(_) | Self::Long(_) | Self::Float(_) | Self::Double(_))
             }
@@ -110,6 +123,89 @@ macro_rules! object_ref_impl {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ObjectOwned<T: Types + ?Sized> {
+    Byte(i8),
+    Short(i16),
+    Int(i32),
+    Long(i64),
+    Float(f32),
+    Double(f64),
+    ByteArray(Vec<i8>),
+    ShortArray(Vec<i16>),
+    IntArray(Vec<i32>),
+    LongArray(Vec<i64>),
+    List(T::List),
+    Map(T::Map),
+    String(String),
+}
+object_ref_impl!(ObjectOwned, |v: &[_]| Vec::from(v));
+
+impl<T: Types + ?Sized> ObjectOwned<T> {
+    pub fn as_string(&self) -> Option<&String> {
+        match self {
+            Self::String(str) => Some(str),
+            _ => None
+        }
+    }
+
+    pub fn as_string_mut(&mut self) -> Option<&mut String> {
+        match self {
+            Self::String(str) => Some(str),
+            _ => None
+        }
+    }
+
+    pub fn into_string(self) -> Option<String> {
+        match self {
+            Self::String(str) => Some(str),
+            _ => None
+        }
+    }
+
+    pub fn as_list(&self) -> Option<&T::List> {
+        match self {
+            Self::List(arr) => Some(arr),
+            _ => None
+        }
+    }
+
+    pub fn as_list_mut(&mut self) -> Option<&mut T::List> {
+        match self {
+            Self::List(arr) => Some(arr),
+            _ => None
+        }
+    }
+
+    pub fn into_list(self) -> Option<T::List> {
+        match self {
+            Self::List(arr) => Some(arr),
+            _ => None
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&T::Map> {
+        match self {
+            Self::Map(obj) => Some(obj),
+            _ => None
+        }
+    }
+
+    pub fn as_map_mut(&mut self) -> Option<&mut T::Map> {
+        match self {
+            Self::Map(obj) => Some(obj),
+            _ => None
+        }
+    }
+
+    pub fn into_map(self) -> Option<T::Map> {
+        match self {
+            Self::Map(obj) => Some(obj),
+            _ => None
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ObjectRef<'a, T: Types + ?Sized> {
     Byte(i8),
@@ -126,7 +222,7 @@ pub enum ObjectRef<'a, T: Types + ?Sized> {
     Map(&'a T::Map),
     String(&'a str),
 }
-object_ref_impl!(ObjectRef, |v: &&[_]| Vec::from(*v));
+object_ref_impl!(ObjectRef, |v: &&[_]| Vec::from(*v), 'a);
 
 impl<'a, T: Types + ?Sized> ObjectRef<'a, T> {
     pub fn into_string_ref(self) -> Option<&'a str> {
@@ -167,7 +263,7 @@ pub enum ObjectRefMut<'a, T: Types + ?Sized> {
     Map(&'a mut T::Map),
     String(&'a mut str),
 }
-object_ref_impl!(ObjectRefMut, |v: &&mut Vec<_>| (*v).clone());
+object_ref_impl!(ObjectRefMut, |v: &&mut Vec<_>| (*v).clone(), 'a);
 
 impl<'a, T: Types + ?Sized> ObjectRefMut<'a, T> {
     pub fn into_string_ref(self) -> Option<&'a mut str> {
@@ -618,6 +714,20 @@ impl ObjectType<SerdeJsonTypes> for serde_json::Value {
         serde_json::Value::String(value)
     }
 
+    fn to_owned(self) -> ObjectOwned<SerdeJsonTypes> {
+        match self {
+            serde_json::Value::Number(n) => match n.as_f64() {
+                Some(n) => ObjectOwned::Double(n),
+                None => ObjectOwned::Long(n.as_i64().unwrap())
+            },
+            serde_json::Value::Array(arr) => ObjectOwned::List(arr),
+            serde_json::Value::Object(obj) => ObjectOwned::Map(obj),
+            serde_json::Value::String(str) => ObjectOwned::String(str),
+            serde_json::Value::Bool(b) => if b {ObjectOwned::Byte(1)} else {ObjectOwned::Byte(0)},
+            serde_json::Value::Null => ObjectOwned::Byte(0)
+        }
+    }
+
     fn as_ref(&self) -> ObjectRef<SerdeJsonTypes> {
         match self {
             serde_json::Value::Number(n) => match n.as_f64() {
@@ -719,6 +829,23 @@ impl ObjectType<HematiteNbtTypes> for nbt::Value {
 
     fn create_string(value: String) -> Self {
         nbt::Value::String(value)
+    }
+
+    fn to_owned(self) -> ObjectOwned<HematiteNbtTypes> {
+        match self {
+            nbt::Value::Byte(b) => ObjectOwned::Byte(b),
+            nbt::Value::Short(s) => ObjectOwned::Short(s),
+            nbt::Value::Int(i) => ObjectOwned::Int(i),
+            nbt::Value::Long(l) => ObjectOwned::Long(l),
+            nbt::Value::Float(f) => ObjectOwned::Float(f),
+            nbt::Value::Double(d) => ObjectOwned::Double(d),
+            nbt::Value::ByteArray(arr) => ObjectOwned::ByteArray(arr),
+            nbt::Value::IntArray(arr) => ObjectOwned::IntArray(arr),
+            nbt::Value::LongArray(arr) => ObjectOwned::LongArray(arr),
+            nbt::Value::List(arr) => ObjectOwned::List(arr),
+            nbt::Value::Compound(obj) => ObjectOwned::Map(obj),
+            nbt::Value::String(str) => ObjectOwned::String(str),
+        }
     }
 
     fn as_ref(&self) -> ObjectRef<HematiteNbtTypes> {
@@ -940,6 +1067,23 @@ impl ObjectType<QuartzNbtTypes> for quartz_nbt::NbtTag {
     #[inline]
     fn create_string(value: String) -> Self {
         quartz_nbt::NbtTag::String(value)
+    }
+
+    fn to_owned(self) -> ObjectOwned<QuartzNbtTypes> {
+        match self {
+            quartz_nbt::NbtTag::Byte(v) => ObjectOwned::Byte(v),
+            quartz_nbt::NbtTag::Short(v) => ObjectOwned::Short(v),
+            quartz_nbt::NbtTag::Int(v) => ObjectOwned::Int(v),
+            quartz_nbt::NbtTag::Long(v) => ObjectOwned::Long(v),
+            quartz_nbt::NbtTag::Float(v) => ObjectOwned::Float(v),
+            quartz_nbt::NbtTag::Double(v) => ObjectOwned::Double(v),
+            quartz_nbt::NbtTag::ByteArray(v) => ObjectOwned::ByteArray(v),
+            quartz_nbt::NbtTag::IntArray(v) => ObjectOwned::IntArray(v),
+            quartz_nbt::NbtTag::LongArray(v) => ObjectOwned::LongArray(v),
+            quartz_nbt::NbtTag::List(v) => ObjectOwned::List(v),
+            quartz_nbt::NbtTag::Compound(v) => ObjectOwned::Map(v),
+            quartz_nbt::NbtTag::String(v) => ObjectOwned::String(v),
+        }
     }
 
     fn as_ref(&self) -> ObjectRef<QuartzNbtTypes> {
