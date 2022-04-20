@@ -292,6 +292,7 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
     type KeyIter<'a> : Iterator<Item = &'a String> where Self: 'a;
     type ValueIter<'a> : Iterator<Item = &'a T::Object> where Self: 'a;
     type ValueIterMut<'a> : Iterator<Item = &'a mut T::Object> where Self: 'a;
+    type Entry<'a> : MapEntry<'a, T> where Self: 'a;
 
     fn create_empty() -> Self;
 
@@ -308,6 +309,8 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
     fn get_mut<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<&mut T::Object> where String: Borrow<Q>;
 
     fn set(&mut self, key: impl Into<String>, value: T::Object);
+
+    fn entry(&mut self, key: impl Into<String>) -> Self::Entry<'_>;
 
     fn remove<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q>;
 
@@ -375,6 +378,15 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
             results.map(|r| r.map(|v| &mut *v))
         }
     }
+}
+
+pub trait MapEntry<'a, T: Types + ?Sized> : Sized {
+    #[inline]
+    fn or_insert(self, value: T::Object) -> &'a mut T::Object {
+        self.or_insert_with(move || value)
+    }
+
+    fn or_insert_with(self, default: impl FnOnce() -> T::Object) -> &'a mut T::Object;
 }
 
 pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
@@ -460,6 +472,7 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     type KeyIter<'a> = impl Iterator<Item=&'a String> where S: 'a;
     type ValueIter<'a> = impl Iterator<Item=&'a T::Object> where S: 'a;
     type ValueIterMut<'a> = impl Iterator<Item=&'a mut T::Object> where S: 'a;
+    type Entry<'a> = impl MapEntry<'a, T> where S: 'a;
 
     #[inline]
     fn create_empty() -> Self {
@@ -502,6 +515,11 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
+    fn entry(&mut self, key: impl Into<String>) -> Self::Entry<'_> {
+        std::collections::HashMap::entry(self, key.into())
+    }
+
+    #[inline]
     fn remove<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q> {
         std::collections::HashMap::remove(self, key)
     }
@@ -517,11 +535,19 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 }
 
+impl<'a, T: Types + ?Sized> MapEntry<'a, T> for std::collections::hash_map::Entry<'a, String, T::Object> {
+    #[inline]
+    fn or_insert_with(self, default: impl FnOnce() -> T::Object) -> &'a mut T::Object {
+        std::collections::hash_map::Entry::or_insert_with(self, default)
+    }
+}
+
 #[cfg(feature = "indexmap")]
 impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> for indexmap::IndexMap<String, T::Object, S> {
     type KeyIter<'a> = impl Iterator<Item=&'a String> where S: 'a;
     type ValueIter<'a> = impl Iterator<Item=&'a T::Object> where S: 'a;
     type ValueIterMut<'a> = impl Iterator<Item=&'a mut T::Object> where S: 'a;
+    type Entry<'a> = impl MapEntry<'a, T> where S: 'a;
 
     #[inline]
     fn create_empty() -> Self {
@@ -564,6 +590,11 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     }
 
     #[inline]
+    fn entry(&mut self, key: impl Into<String>) -> Self::Entry<'_> {
+        indexmap::IndexMap::entry(self, key.into())
+    }
+
+    #[inline]
     fn remove<Q: ?Sized + Hash + Eq>(&mut self, key: &Q) -> Option<T::Object> where String: Borrow<Q> {
         indexmap::IndexMap::remove(self, key)
     }
@@ -576,6 +607,14 @@ impl<T: Types + ?Sized, S: std::hash::BuildHasher + Clone + Default> MapType<T> 
     #[inline]
     fn size(&self) -> usize {
         indexmap::IndexMap::len(self)
+    }
+}
+
+#[cfg(feature = "indexmap")]
+impl<'a, T: Types + ?Sized> MapEntry<'a, T> for indexmap::map::Entry<'a, String, T::Object> {
+    #[inline]
+    fn or_insert_with(self, default: impl FnOnce() -> T::Object) -> &'a mut T::Object {
+        indexmap::map::Entry::or_insert_with(self, default)
     }
 }
 
@@ -594,6 +633,7 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     type KeyIter<'a> = impl Iterator<Item=&'a String>;
     type ValueIter<'a> = impl Iterator<Item=&'a serde_json::Value>;
     type ValueIterMut<'a> = impl Iterator<Item=&'a mut serde_json::Value>;
+    type Entry<'a> = impl MapEntry<'a, SerdeJsonTypes>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -636,6 +676,11 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     }
 
     #[inline]
+    fn entry(&mut self, key: impl Into<String>) -> Self::Entry<'_> {
+        serde_json::Map::entry(self, key.into())
+    }
+
+    #[inline]
     fn remove<Q: ?Sized + Hash + Eq + Ord>(&mut self, key: &Q) -> Option<serde_json::Value> where String: Borrow<Q> {
         serde_json::Map::remove(self, key)
     }
@@ -648,6 +693,14 @@ impl MapType<SerdeJsonTypes> for serde_json::Map<String, serde_json::Value> {
     #[inline]
     fn size(&self) -> usize {
         serde_json::Map::len(self)
+    }
+}
+
+#[cfg(feature = "serde_json")]
+impl<'a> MapEntry<'a, SerdeJsonTypes> for serde_json::map::Entry<'a> {
+    #[inline]
+    fn or_insert_with(self, default: impl FnOnce() -> serde_json::Value) -> &'a mut serde_json::Value {
+        serde_json::map::Entry::or_insert_with(self, default)
     }
 }
 
@@ -948,6 +1001,7 @@ impl MapType<QuartzNbtTypes> for quartz_nbt::NbtCompound {
     type KeyIter<'a> = impl Iterator<Item = &'a String>;
     type ValueIter<'a> = impl Iterator<Item = &'a quartz_nbt::NbtTag>;
     type ValueIterMut<'a> = impl Iterator<Item = &'a mut quartz_nbt::NbtTag>;
+    type Entry<'a> = impl MapEntry<'a, QuartzNbtTypes>;
 
     #[inline]
     fn create_empty() -> Self {
@@ -985,6 +1039,11 @@ impl MapType<QuartzNbtTypes> for quartz_nbt::NbtCompound {
     #[inline]
     fn set(&mut self, key: impl Into<String>, value: quartz_nbt::NbtTag) {
         quartz_nbt::NbtCompound::insert(self, key.into(), value);
+    }
+
+    #[inline]
+    fn entry(&mut self, key: impl Into<String>) -> Self::Entry<'_> {
+        self.inner_mut().entry(key.into())
     }
 
     #[inline]
