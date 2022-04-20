@@ -8,6 +8,8 @@ pub trait Types: 'static {
 }
 
 pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt::Debug {
+    #[inline]
+    fn create_bool(value: bool) -> Self { Self::create_byte(if value {1} else {0}) }
     fn create_byte(value: i8) -> Self;
     fn create_short(value: i16) -> Self;
     fn create_int(value: i32) -> Self;
@@ -25,6 +27,8 @@ pub trait ObjectType<T: 'static + Types + ?Sized>: PartialEq + Clone + core::fmt
     fn to_owned(self) -> ObjectOwned<T>;
     fn as_ref(&self) -> ObjectRef<T>;
     fn as_ref_mut(&mut self) -> ObjectRefMut<T>;
+
+    fn as_bool(&self) -> Option<bool> { self.as_ref().as_bool() }
 
     fn as_i64(&self) -> Option<i64> {
         self.as_ref().as_i64()
@@ -76,6 +80,10 @@ macro_rules! object_ref_impl {
         impl<$($lifetime,)? T: Types + ?Sized> $ref_type<$($lifetime,)? T> {
             pub fn is_number(&self) -> bool {
                 matches!(self, Self::Byte(_) | Self::Short(_) | Self::Int(_) | Self::Long(_) | Self::Float(_) | Self::Double(_))
+            }
+
+            pub fn as_bool(&self) -> Option<bool> {
+                self.as_i64().map(|i| i != 0)
             }
 
             pub fn as_f64(&self) -> Option<f64> {
@@ -320,6 +328,10 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
 
     fn is_empty(&self) -> bool {
         self.size() == 0
+    }
+
+    fn get_bool<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<bool> where String: Borrow<Q> {
+        self.get(key).and_then(T::Object::as_bool)
     }
 
     fn get_i64<Q: ?Sized + Hash + Eq + Ord>(&self, key: &Q) -> Option<i64> where String: Borrow<Q> {
