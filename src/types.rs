@@ -372,6 +372,21 @@ pub trait MapType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug + In
         }
     }
 
+    fn rename_keys(&mut self, renamer: impl Fn(&str) -> Option<String>) {
+        let mut renames = Vec::new();
+        for key in self.keys() {
+            if let Some(new_key) = renamer(key.as_str()) {
+                renames.push((key.clone(), new_key));
+            }
+        }
+
+        for (from, to) in renames {
+            let from: String = from;
+            let value = self.remove(from.as_str()).unwrap();
+            self.set(to, value);
+        }
+    }
+
     fn get_mut_multi<Q: ?Sized + Hash + Eq + Ord, const N: usize>(&mut self, keys: [&Q; N]) -> [Option<&mut T::Object>; N]
         where String: Borrow<Q>
     {
