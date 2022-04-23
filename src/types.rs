@@ -434,6 +434,8 @@ pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
 
     fn add(&mut self, value: T::Object);
 
+    fn remove(&mut self, index: usize);
+
     fn clear(&mut self);
 
     fn size(&self) -> usize;
@@ -472,6 +474,11 @@ impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
     #[inline]
     fn add(&mut self, value: T::Object) {
         self.push(value);
+    }
+
+    #[inline]
+    fn remove(&mut self, index: usize) {
+        Vec::remove(self, index);
     }
 
     #[inline]
@@ -1000,6 +1007,11 @@ impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
     #[inline]
     fn add(&mut self, value: quartz_nbt::NbtTag) {
         quartz_nbt::NbtList::push(self, value)
+    }
+
+    #[inline]
+    fn remove(&mut self, index: usize) {
+        self.inner_mut().remove(index);
     }
 
     #[inline]
