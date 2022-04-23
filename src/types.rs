@@ -425,7 +425,12 @@ pub trait ListType<T: Types + ?Sized> : PartialEq + Clone + core::fmt::Debug {
 
     fn get(&self, index: usize) -> &T::Object;
 
-    fn set(&mut self, index: usize, value: T::Object);
+    fn get_mut(&mut self, index: usize) -> &mut T::Object;
+
+    #[inline]
+    fn set(&mut self, index: usize, value: T::Object) {
+        *self.get_mut(index) = value;
+    }
 
     fn add(&mut self, value: T::Object);
 
@@ -460,8 +465,8 @@ impl<T: Types + ?Sized> ListType<T> for Vec<T::Object> {
     }
 
     #[inline]
-    fn set(&mut self, index: usize, value: T::Object) {
-        self[index] = value;
+    fn get_mut(&mut self, index: usize) -> &mut T::Object {
+        &mut self[index]
     }
 
     #[inline]
@@ -988,9 +993,8 @@ impl ListType<QuartzNbtTypes> for quartz_nbt::NbtList {
         quartz_nbt::NbtList::get(self, index).expect("Index out of bounds")
     }
 
-    #[inline]
-    fn set(&mut self, index: usize, value: quartz_nbt::NbtTag) {
-        self.inner_mut()[index] = value;
+    fn get_mut(&mut self, index: usize) -> &mut quartz_nbt::NbtTag {
+        quartz_nbt::NbtList::get_mut(self, index).expect("Index out of bounds")
     }
 
     #[inline]
