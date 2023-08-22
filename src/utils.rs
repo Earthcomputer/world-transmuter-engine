@@ -236,3 +236,31 @@ pub fn rename_key(map: &mut Compound, from: &str, to: impl Into<String>) {
         map.insert(to.into(), value);
     }
 }
+
+pub fn get_mut_multi<'a, const N: usize>(
+    map: &'a mut Compound,
+    keys: [&str; N],
+) -> [Option<&'a mut valence_nbt::Value>; N] {
+    #[cold]
+    #[inline(never)]
+    fn non_unique_keys(keys: &[&str]) -> ! {
+        panic!("keys are not all unique: {keys:?}")
+    }
+
+    if N > 1 {
+        for i in 0..N - 1 {
+            for j in i + 1..N {
+                if keys[i] == keys[j] {
+                    non_unique_keys(&keys);
+                }
+            }
+        }
+    }
+
+    keys.map(|key| {
+        map.get_mut(key).map(|value| {
+            // SAFETY: we just checked that all keys are unique, so these mutable references are all different values in the map, so they can coexist.
+            unsafe { &mut *(value as *mut _) }
+        })
+    })
+}
