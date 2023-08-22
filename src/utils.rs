@@ -231,9 +231,20 @@ pub fn convert_values<T>(
     }
 }
 
+#[inline]
 pub fn rename_key(map: &mut Compound, from: &str, to: impl Into<String>) {
     if let Some(value) = map.remove(from) {
         map.insert(to.into(), value);
+    }
+}
+
+pub fn rename_keys(map: &mut Compound, renamer: impl Fn(&str) -> Option<String>) {
+    let renames: Vec<_> = map
+        .keys()
+        .filter_map(|key| renamer(key).map(|new_key| (key.clone(), new_key)))
+        .collect();
+    for (from, to) in renames {
+        rename_key(map, &from, to);
     }
 }
 
