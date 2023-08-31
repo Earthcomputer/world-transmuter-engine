@@ -25,13 +25,10 @@ where
 impl<T> DataWalker for DataWalkerObjectListPaths<T>
 where
     T: AbstractValueDataType,
-    T::Context: Copy,
 {
-    type Context = T::Context;
-
-    fn walk(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
-            convert_object_list_in_map(&self.typ, context, data, path, from_version, to_version);
+            convert_object_list_in_map(&self.typ, data, path, from_version, to_version);
         }
     }
 }
@@ -60,13 +57,10 @@ where
 impl<T> DataWalker for DataWalkerMapListPaths<T>
 where
     T: AbstractMapDataType,
-    T::Context: Copy,
 {
-    type Context = T::Context;
-
-    fn walk(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
-            convert_map_list_in_map(&self.typ, context, data, path, from_version, to_version);
+            convert_map_list_in_map(&self.typ, data, path, from_version, to_version);
         }
     }
 }
@@ -95,13 +89,10 @@ where
 impl<T> DataWalker for DataWalkerObjectTypePaths<T>
 where
     T: AbstractValueDataType,
-    T::Context: Copy,
 {
-    type Context = T::Context;
-
-    fn walk(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
-            convert_object_in_map(&self.typ, context, data, path, from_version, to_version);
+            convert_object_in_map(&self.typ, data, path, from_version, to_version);
         }
     }
 }
@@ -130,20 +121,16 @@ where
 impl<T> DataWalker for DataWalkerMapTypePaths<T>
 where
     T: AbstractMapDataType,
-    T::Context: Copy,
 {
-    type Context = T::Context;
-
-    fn walk(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
-            convert_map_in_map(&self.typ, context, data, path, from_version, to_version);
+            convert_map_in_map(&self.typ, data, path, from_version, to_version);
         }
     }
 }
 
 pub fn convert_map_in_map<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     path: &str,
     from_version: DataVersion,
@@ -152,31 +139,28 @@ pub fn convert_map_in_map<T>(
     T: AbstractMapDataType,
 {
     if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path) {
-        data_type.convert(context, map, from_version, to_version);
+        data_type.convert(map, from_version, to_version);
     }
 }
 
 pub fn convert_map_list_in_map<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
-    T::Context: Copy,
 {
     if let Some(valence_nbt::Value::List(valence_nbt::List::Compound(list))) = data.get_mut(path) {
         for map in list {
-            data_type.convert(context, map, from_version, to_version);
+            data_type.convert(map, from_version, to_version);
         }
     }
 }
 
 pub fn convert_object_in_map<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     path: &str,
     from_version: DataVersion,
@@ -185,72 +169,64 @@ pub fn convert_object_in_map<T>(
     T: AbstractValueDataType,
 {
     if let Some(obj) = data.get_mut(path) {
-        data_type.convert(context, &mut obj.as_value_mut(), from_version, to_version);
+        data_type.convert(&mut obj.as_value_mut(), from_version, to_version);
     }
 }
 
 pub fn convert_object_list<T>(
     data_type: T,
-    context: T::Context,
     data: &mut valence_nbt::List,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractValueDataType,
-    T::Context: Copy,
 {
     for mut obj in data.iter_mut() {
-        data_type.convert(context, &mut obj, from_version, to_version);
+        data_type.convert(&mut obj, from_version, to_version);
     }
 }
 
 pub fn convert_object_list_in_map<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractValueDataType,
-    T::Context: Copy,
 {
     if let Some(valence_nbt::Value::List(list)) = data.get_mut(path) {
         for mut obj in list.iter_mut() {
-            data_type.convert(context, &mut obj, from_version, to_version);
+            data_type.convert(&mut obj, from_version, to_version);
         }
     }
 }
 
 pub fn convert_values_in_map<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
-    T::Context: Copy,
 {
     if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path) {
-        convert_values(data_type, context, map, from_version, to_version);
+        convert_values(data_type, map, from_version, to_version);
     }
 }
 
 pub fn convert_values<T>(
     data_type: T,
-    context: T::Context,
     data: &mut Compound,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
-    T::Context: Copy,
 {
     for obj in data.values_mut() {
         if let valence_nbt::Value::Compound(map) = obj {
-            data_type.convert(context, map, from_version, to_version);
+            data_type.convert(map, from_version, to_version);
         }
     }
 }

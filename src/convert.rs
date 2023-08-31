@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::marker::PhantomData;
 use std::rc::Rc;
 use valence_nbt::Compound;
 
@@ -33,42 +32,34 @@ impl From<u32> for DataVersion {
 }
 
 pub trait MapDataConverterFunc {
-    type Context;
-
-    fn convert(&self, context: Self::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn map_data_converter_func<F, C>(func: F) -> impl MapDataConverterFunc<Context = C>
+pub fn map_data_converter_func<'a, F>(func: F) -> impl MapDataConverterFunc + 'a
 where
-    F: Fn(C, &mut Compound, DataVersion, DataVersion),
+    F: Fn(&mut Compound, DataVersion, DataVersion) + 'a,
 {
-    struct DataConverterFuncImpl<F, C>(F, PhantomData<C>);
-    impl<F, C> MapDataConverterFunc for DataConverterFuncImpl<F, C>
+    struct DataConverterFuncImpl<F>(F);
+    impl<F> MapDataConverterFunc for DataConverterFuncImpl<F>
     where
-        F: Fn(C, &mut Compound, DataVersion, DataVersion),
+        F: Fn(&mut Compound, DataVersion, DataVersion),
     {
-        type Context = C;
-
-        fn convert(&self, context: C, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-            (self.0)(context, data, from_version, to_version)
+        fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+            (self.0)(data, from_version, to_version)
         }
     }
-    DataConverterFuncImpl(func, PhantomData)
+    DataConverterFuncImpl(func)
 }
 
 impl<T: MapDataConverterFunc + ?Sized> MapDataConverterFunc for &T {
-    type Context = T::Context;
-
-    fn convert(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(self, context, data, from_version, to_version)
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(self, data, from_version, to_version)
     }
 }
 
 impl<T: MapDataConverterFunc + ?Sized> MapDataConverterFunc for Box<T> {
-    type Context = T::Context;
-
-    fn convert(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(&*self, context, data, from_version, to_version)
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(&*self, data, from_version, to_version)
     }
 }
 
@@ -92,77 +83,64 @@ impl<F: MapDataConverterFunc> MapDataConverter<F> {
 
     pub fn convert(
         &self,
-        context: F::Context,
         data: &mut Compound,
         from_version: impl Into<DataVersion>,
         to_version: impl Into<DataVersion>,
     ) {
         self.conversion_func
-            .convert(context, data, from_version.into(), to_version.into())
+            .convert(data, from_version.into(), to_version.into())
     }
 }
 
 pub trait ValueDataConverterFunc {
-    type Context;
-
     fn convert(
         &self,
-        context: Self::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     );
 }
 
-pub fn value_data_converter_func<F, C>(func: F) -> impl ValueDataConverterFunc<Context = C>
+pub fn value_data_converter_func<'a, F>(func: F) -> impl ValueDataConverterFunc + 'a
 where
-    F: Fn(C, &mut valence_nbt::value::ValueMut, DataVersion, DataVersion),
+    F: Fn(&mut valence_nbt::value::ValueMut, DataVersion, DataVersion) + 'a,
 {
-    struct DataConverterFuncImpl<F, C>(F, PhantomData<C>);
-    impl<F, C> ValueDataConverterFunc for DataConverterFuncImpl<F, C>
+    struct DataConverterFuncImpl<F>(F);
+    impl<F> ValueDataConverterFunc for DataConverterFuncImpl<F>
     where
-        F: Fn(C, &mut valence_nbt::value::ValueMut, DataVersion, DataVersion),
+        F: Fn(&mut valence_nbt::value::ValueMut, DataVersion, DataVersion),
     {
-        type Context = C;
-
         fn convert(
             &self,
-            context: C,
             data: &mut valence_nbt::value::ValueMut,
             from_version: DataVersion,
             to_version: DataVersion,
         ) {
-            (self.0)(context, data, from_version, to_version)
+            (self.0)(data, from_version, to_version)
         }
     }
-    DataConverterFuncImpl(func, PhantomData)
+    DataConverterFuncImpl(func)
 }
 
 impl<T: ValueDataConverterFunc + ?Sized> ValueDataConverterFunc for &T {
-    type Context = T::Context;
-
     fn convert(
         &self,
-        context: T::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(self, context, data, from_version, to_version)
+        T::convert(self, data, from_version, to_version)
     }
 }
 
 impl<T: ValueDataConverterFunc + ?Sized> ValueDataConverterFunc for Box<T> {
-    type Context = T::Context;
-
     fn convert(
         &self,
-        context: T::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(&*self, context, data, from_version, to_version)
+        T::convert(&*self, data, from_version, to_version)
     }
 }
 
@@ -186,13 +164,12 @@ impl<F: ValueDataConverterFunc> ValueDataConverter<F> {
 
     pub fn convert(
         &self,
-        context: F::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: impl Into<DataVersion>,
         to_version: impl Into<DataVersion>,
     ) {
         self.conversion_func
-            .convert(context, data, from_version.into(), to_version.into())
+            .convert(data, from_version.into(), to_version.into())
     }
 }
 
@@ -240,33 +217,24 @@ pub struct ConversionError {
 pub type Result<T> = core::result::Result<T, ConversionError>;
 
 pub trait AbstractMapDataType {
-    type Context;
-
-    fn convert(&self, context: Self::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
 }
 
 impl<T: AbstractMapDataType> AbstractMapDataType for &T {
-    type Context = T::Context;
-
-    fn convert(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(self, context, data, from_version, to_version)
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(self, data, from_version, to_version)
     }
 }
 
 impl<T: AbstractMapDataType> AbstractMapDataType for core::cell::RefCell<T> {
-    type Context = T::Context;
-
-    fn convert(&self, context: T::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(&*self.borrow(), context, data, from_version, to_version)
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(&*self.borrow(), data, from_version, to_version)
     }
 }
 
 pub trait AbstractValueDataType {
-    type Context;
-
     fn convert(
         &self,
-        context: Self::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
@@ -274,42 +242,36 @@ pub trait AbstractValueDataType {
 }
 
 impl<T: AbstractValueDataType> AbstractValueDataType for &T {
-    type Context = T::Context;
-
     fn convert(
         &self,
-        context: T::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(self, context, data, from_version, to_version)
+        T::convert(self, data, from_version, to_version)
     }
 }
 
 impl<T: AbstractValueDataType> AbstractValueDataType for core::cell::RefCell<T> {
-    type Context = T::Context;
-
     fn convert(
         &self,
-        context: T::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(&*self.borrow(), context, data, from_version, to_version)
+        T::convert(&*self.borrow(), data, from_version, to_version)
     }
 }
 
 macro_rules! structure_converters {
     ($ty:ident, $field_name:ident, $data_converter:ident, $converter_func:ident) => {
-        impl<C> $ty<C> {
+        impl<'a> $ty<'a> {
             pub fn add_structure_converter(
                 &mut self,
                 version: impl Into<DataVersion>,
-                func: impl $converter_func<Context = C> + 'static,
+                func: impl $converter_func + 'a,
             ) {
-                let dyn_box: Box<dyn $converter_func<Context = C>> = Box::new(func);
+                let dyn_box: Box<dyn $converter_func> = Box::new(func);
                 let converter = $data_converter::new(version, dyn_box);
                 let index = self.$field_name.binary_search(&converter);
                 let index = match index {
@@ -324,7 +286,7 @@ macro_rules! structure_converters {
 
 macro_rules! version_list {
     ($ty:ident, $method_name:ident, $field_name:ident, $element_type:ty) => {
-        impl<C> $ty<C> {
+        impl<'a> $ty<'a> {
             pub fn $method_name(&mut self, version: impl Into<DataVersion>, value: $element_type) {
                 self.$field_name
                     .entry(version.into())
@@ -335,13 +297,13 @@ macro_rules! version_list {
     };
 }
 
-type DynMapDataConverterFunc<C> = Box<dyn MapDataConverterFunc<Context = C>>;
+type DynMapDataConverterFunc<'a> = Box<dyn MapDataConverterFunc + 'a>;
 
-pub struct MapDataType<C> {
+pub struct MapDataType<'a> {
     pub name: String,
-    structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<C>>>,
-    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker<Context = C>>>>,
-    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook<Context = C>>>>,
+    structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker + 'a>>>,
+    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook + 'a>>>,
 }
 structure_converters!(
     MapDataType,
@@ -353,15 +315,15 @@ version_list!(
     MapDataType,
     add_structure_walker,
     structure_walkers,
-    impl DataWalker<Context = C> + 'static
+    impl DataWalker + 'a
 );
 version_list!(
     MapDataType,
     add_structure_hook,
     structure_hooks,
-    impl MapDataHook<Context = C> + 'static
+    impl MapDataHook + 'a
 );
-impl<C> MapDataType<C> {
+impl<'a> MapDataType<'a> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -372,10 +334,8 @@ impl<C> MapDataType<C> {
     }
 }
 
-impl<C> AbstractMapDataType for MapDataType<C> where C: Copy {
-    type Context = C;
-
-    fn convert(&self, context: C, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+impl<'a> AbstractMapDataType for MapDataType<'a> {
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
             if converter.get_to_version() <= from_version {
                 continue;
@@ -390,17 +350,17 @@ impl<C> AbstractMapDataType for MapDataType<C> where C: Copy {
                 .next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks {
-                    hook.pre_hook(context, data, from_version, to_version);
+                    hook.pre_hook(data, from_version, to_version);
                 }
             }
 
-            converter.convert(context, data, from_version, to_version);
+            converter.convert(data, from_version, to_version);
 
             // possibly new data format, update hooks
             let hooks = self.structure_hooks.range(..=to_version).next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks.iter().rev() {
-                    hook.post_hook(context, data, from_version, to_version);
+                    hook.post_hook(data, from_version, to_version);
                 }
             }
         }
@@ -408,31 +368,31 @@ impl<C> AbstractMapDataType for MapDataType<C> where C: Copy {
         let hooks = self.structure_hooks.range(..=to_version).next_back();
         if let Some((_, hooks)) = hooks {
             for hook in hooks {
-                hook.pre_hook(context, data, from_version, to_version);
+                hook.pre_hook(data, from_version, to_version);
             }
         }
 
         let walkers = self.structure_walkers.range(..=to_version).next_back();
         if let Some((_, walkers)) = walkers {
             for walker in walkers {
-                walker.walk(context, data, from_version, to_version);
+                walker.walk(data, from_version, to_version);
             }
         }
 
         if let Some((_, hooks)) = hooks {
             for hook in hooks.iter().rev() {
-                hook.post_hook(context, data, from_version, to_version);
+                hook.post_hook(data, from_version, to_version);
             }
         }
     }
 }
 
-type DynValueDataConverterFunc<C> = Box<dyn ValueDataConverterFunc<Context = C>>;
+type DynValueDataConverterFunc<'a> = Box<dyn ValueDataConverterFunc + 'a>;
 
-pub struct ObjectDataType<C> {
+pub struct ObjectDataType<'a> {
     pub name: String,
-    converters: Vec<ValueDataConverter<DynValueDataConverterFunc<C>>>,
-    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn ValueDataHook<Context = C>>>>,
+    converters: Vec<ValueDataConverter<DynValueDataConverterFunc<'a>>>,
+    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn ValueDataHook + 'a>>>,
 }
 structure_converters!(
     ObjectDataType,
@@ -444,10 +404,10 @@ version_list!(
     ObjectDataType,
     add_structure_hook,
     structure_hooks,
-    impl ValueDataHook<Context = C> + 'static
+    impl ValueDataHook + 'a
 );
 
-impl<C> ObjectDataType<C> {
+impl<'a> ObjectDataType<'a> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -457,12 +417,9 @@ impl<C> ObjectDataType<C> {
     }
 }
 
-impl<C> AbstractValueDataType for ObjectDataType<C> where C: Copy {
-    type Context = C;
-
+impl<'a> AbstractValueDataType for ObjectDataType<'a> {
     fn convert(
         &self,
-        context: C,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
@@ -481,31 +438,31 @@ impl<C> AbstractValueDataType for ObjectDataType<C> where C: Copy {
                 .next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks {
-                    hook.pre_hook(context, data, from_version, to_version);
+                    hook.pre_hook(data, from_version, to_version);
                 }
             }
 
-            converter.convert(context, data, from_version, to_version);
+            converter.convert(data, from_version, to_version);
 
             // possibly new data format, update hooks
             let hooks = self.structure_hooks.range(..=to_version).next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks.iter().rev() {
-                    hook.post_hook(context, data, from_version, to_version);
+                    hook.post_hook(data, from_version, to_version);
                 }
             }
         }
     }
 }
 
-type WalkersById<C> = Vec<Rc<dyn DataWalker<Context = C>>>;
+type WalkersById<'a> = Vec<Rc<dyn DataWalker + 'a>>;
 
-pub struct IdDataType<C> {
+pub struct IdDataType<'a> {
     pub name: String,
-    structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<C>>>,
-    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker<Context = C>>>>,
-    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook<Context = C>>>>,
-    walkers_by_id: BTreeMap<String, BTreeMap<DataVersion, WalkersById<C>>>,
+    structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker + 'a>>>,
+    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook + 'a>>>,
+    walkers_by_id: BTreeMap<String, BTreeMap<DataVersion, WalkersById<'a>>>,
 }
 structure_converters!(
     IdDataType,
@@ -517,16 +474,16 @@ version_list!(
     IdDataType,
     add_structure_walker,
     structure_walkers,
-    impl DataWalker<Context = C> + 'static
+    impl DataWalker + 'a
 );
 version_list!(
     IdDataType,
     add_structure_hook,
     structure_hooks,
-    impl MapDataHook<Context = C> + 'static
+    impl MapDataHook + 'a
 );
 
-impl<C> IdDataType<C> {
+impl<'a> IdDataType<'a> {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -541,15 +498,15 @@ impl<C> IdDataType<C> {
         &mut self,
         id: impl Into<String>,
         version: impl Into<DataVersion>,
-        converter_func: impl MapDataConverterFunc<Context = C> + 'static,
+        converter_func: impl MapDataConverterFunc + 'a,
     ) {
         let id_str = id.into();
         self.add_structure_converter(
             version,
-            map_data_converter_func(move |context, data, from_version, to_version| {
+            map_data_converter_func(move |data, from_version, to_version| {
                 if matches!(data.get("id"), Some(valence_nbt::Value::String(str)) if str == &id_str)
                 {
-                    converter_func.convert(context, data, from_version, to_version);
+                    converter_func.convert(data, from_version, to_version);
                 }
             }),
         );
@@ -559,7 +516,7 @@ impl<C> IdDataType<C> {
         &mut self,
         version: impl Into<DataVersion>,
         id: impl Into<String>,
-        walker: impl DataWalker<Context = C> + 'static,
+        walker: impl DataWalker + 'a,
     ) {
         self.walkers_by_id
             .entry(id.into())
@@ -592,10 +549,8 @@ impl<C> IdDataType<C> {
     }
 }
 
-impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
-    type Context = C;
-
-    fn convert(&self, context: C, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+impl<'a> AbstractMapDataType for IdDataType<'a> {
+    fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
             if converter.get_to_version() <= from_version {
                 continue;
@@ -610,17 +565,17 @@ impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
                 .next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks {
-                    hook.pre_hook(context, data, from_version, to_version);
+                    hook.pre_hook(data, from_version, to_version);
                 }
             }
 
-            converter.convert(context, data, from_version, to_version);
+            converter.convert(data, from_version, to_version);
 
             // possibly new data format, update hooks
             let hooks = self.structure_hooks.range(..=to_version).next_back();
             if let Some((_, hooks)) = hooks {
                 for hook in hooks {
-                    hook.post_hook(context, data, from_version, to_version);
+                    hook.post_hook(data, from_version, to_version);
                 }
             }
         }
@@ -630,7 +585,7 @@ impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
         let hooks = self.structure_hooks.range(..=to_version).next_back();
         if let Some((_, hooks)) = hooks {
             for hook in hooks.iter().rev() {
-                hook.pre_hook(context, data, from_version, to_version);
+                hook.pre_hook(data, from_version, to_version);
             }
         }
 
@@ -639,7 +594,7 @@ impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
         let walkers = self.structure_walkers.range(..=to_version).next_back();
         if let Some((_, walkers)) = walkers {
             for walker in walkers {
-                walker.walk(context, data, from_version, to_version);
+                walker.walk(data, from_version, to_version);
             }
         }
 
@@ -647,7 +602,7 @@ impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
             if let Some(walkers_by_version) = self.walkers_by_id.get(id) {
                 if let Some((_, walkers)) = walkers_by_version.range(..=to_version).next_back() {
                     for walker in walkers {
-                        walker.walk(context, data, from_version, to_version);
+                        walker.walk(data, from_version, to_version);
                     }
                 }
             }
@@ -657,32 +612,26 @@ impl<C> AbstractMapDataType for IdDataType<C> where C: Copy {
 
         if let Some((_, hooks)) = hooks {
             for hook in hooks.iter().rev() {
-                hook.post_hook(context, data, from_version, to_version);
+                hook.post_hook(data, from_version, to_version);
             }
         }
     }
 }
 
 pub trait MapDataHook {
-    type Context;
-
-    fn pre_hook(&self, context: Self::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
-    fn post_hook(&self, context: Self::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
+    fn pre_hook(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
+    fn post_hook(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
 }
 
 pub trait ValueDataHook {
-    type Context;
-
     fn pre_hook(
         &self,
-        context: Self::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     );
     fn post_hook(
         &self,
-        context: Self::Context,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
@@ -690,25 +639,21 @@ pub trait ValueDataHook {
 }
 
 pub trait DataWalker {
-    type Context;
-
-    fn walk(&self, context: Self::Context, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
+    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn data_walker<F, C>(func: F) -> impl DataWalker<Context = C>
+pub fn data_walker<'a, F>(func: F) -> impl DataWalker + 'a
 where
-    F: Fn(C, &mut Compound, DataVersion, DataVersion),
+    F: Fn(&mut Compound, DataVersion, DataVersion) + 'a,
 {
-    struct DataWalkerImpl<F, C>(F, PhantomData<C>);
-    impl<F, C> DataWalker for DataWalkerImpl<F, C>
+    struct DataWalkerImpl<F>(F);
+    impl<F> DataWalker for DataWalkerImpl<F>
     where
-        F: Fn(C, &mut Compound, DataVersion, DataVersion),
+        F: Fn(&mut Compound, DataVersion, DataVersion),
     {
-        type Context = C;
-
-        fn walk(&self, context: C, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-            (self.0)(context, data, from_version, to_version)
+        fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+            (self.0)(data, from_version, to_version)
         }
     }
-    DataWalkerImpl(func, PhantomData)
+    DataWalkerImpl(func)
 }

@@ -31,7 +31,7 @@ mod tests {
     #[test]
     fn simple_conversion() {
         let mut map = make_map(r#"{"test": 42}"#);
-        simple_converted_type().convert((), &mut map, 0.into(), 1.into());
+        simple_converted_type().convert(&mut map, 0.into(), 1.into());
         assert!(matches!(map.get("test"), Some(valence_nbt::Value::String(str)) if str == "42"));
     }
 
@@ -42,11 +42,11 @@ mod tests {
         let inner_type = simple_converted_type();
         typ.add_structure_walker(
             1,
-            data_walker(move |context, data, from_version, to_version| {
-                convert_map_in_map(&inner_type, context, data, "inner", from_version, to_version)
+            data_walker(move |data, from_version, to_version| {
+                convert_map_in_map(&inner_type, data, "inner", from_version, to_version)
             }),
         );
-        typ.convert((), &mut map, 0.into(), 1.into());
+        typ.convert(&mut map, 0.into(), 1.into());
         assert!(
             matches!(map.get("inner"), Some(valence_nbt::Value::Compound(inner)) if matches!(inner.get("test"), Some(valence_nbt::Value::String(str)) if str == "42"))
         );
@@ -59,7 +59,7 @@ mod tests {
         let mut inner_type = ObjectDataType::new("Inner");
         inner_type.add_structure_converter(
             1,
-            value_data_converter_func(|_context, data, _from_version, _to_version| {
+            value_data_converter_func(|data, _from_version, _to_version| {
                 if let valence_nbt::value::ValueMut::Int(ref mut i) = data {
                     **i = 69;
                 }
@@ -69,22 +69,22 @@ mod tests {
         typ.add_walker_for_id(
             1,
             "foo",
-            data_walker(move |context, data, from_version, to_version| {
-                convert_object_in_map(&inner_type, context, data, "test", from_version, to_version);
+            data_walker(move |data, from_version, to_version| {
+                convert_object_in_map(&inner_type, data, "test", from_version, to_version);
             }),
         );
 
-        typ.convert((), &mut map1, 0.into(), 1.into());
-        typ.convert((), &mut map2, 0.into(), 1.into());
+        typ.convert(&mut map1, 0.into(), 1.into());
+        typ.convert(&mut map2, 0.into(), 1.into());
         assert_eq!(69, map1.get("test").unwrap().as_i64().unwrap());
         assert_eq!(42, map2.get("test").unwrap().as_i64().unwrap());
     }
 
-    fn simple_converted_type() -> MapDataType<()> {
+    fn simple_converted_type() -> MapDataType<'static> {
         let mut ret = MapDataType::new("Test");
         ret.add_structure_converter(
             1,
-            map_data_converter_func(|_context, data, _from_version, _to_version| {
+            map_data_converter_func(|data, _from_version, _to_version| {
                 if let Some(valence_nbt::Value::Int(i)) = data.get("test") {
                     data.insert("test", valence_nbt::Value::String(i.to_string()));
                 }
