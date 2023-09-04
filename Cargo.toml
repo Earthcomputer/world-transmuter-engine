@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 
-valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "78a12d4" }
+valence_nbt = "0.7"
 
 [dev-dependencies]
 
-valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "78a12d4", features = ["snbt"] }
+valence_nbt = { version = "0.7", features = ["snbt"] }
