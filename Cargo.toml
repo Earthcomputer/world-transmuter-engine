@@ -2,6 +2,11 @@
 name = "world-transmuter-engine"
 version = "0.1.0"
 edition = "2021"
+license = "LGPL-3.0-only"
+readme = "README.md"
+description = "The engine part of the port of DataConverter to Rust"
+homepage = "https://github.com/Earthcomputer/world-transmuter-engine"
+repository = "https://github.com/Earthcomputer/world-transmuter-engine"
 
 [dependencies]
 
