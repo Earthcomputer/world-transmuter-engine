@@ -59,7 +59,7 @@ impl<T: MapDataConverterFunc + ?Sized> MapDataConverterFunc for &T {
 
 impl<T: MapDataConverterFunc + ?Sized> MapDataConverterFunc for Box<T> {
     fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(&*self, data, from_version, to_version)
+        T::convert(self, data, from_version, to_version)
     }
 }
 
@@ -140,7 +140,7 @@ impl<T: ValueDataConverterFunc + ?Sized> ValueDataConverterFunc for Box<T> {
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(&*self, data, from_version, to_version)
+        T::convert(self, data, from_version, to_version)
     }
 }
 

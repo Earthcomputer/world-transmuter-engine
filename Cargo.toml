@@ -1,12 +1,12 @@
 [package]
-name = "rust_dataconverter_engine"
+name = "world-transmuter-engine"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 
-valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "d741fbe" }
+valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "78a12d4" }
 
 [dev-dependencies]
 
-valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "d741fbe", features = ["snbt"] }
+valence_nbt = { git = "https://github.com/valence-rs/valence", rev = "78a12d4", features = ["snbt"] }
