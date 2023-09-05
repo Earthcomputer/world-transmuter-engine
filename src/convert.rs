@@ -226,9 +226,10 @@ impl<T: AbstractMapDataType> AbstractMapDataType for &T {
     }
 }
 
-impl<T: AbstractMapDataType> AbstractMapDataType for core::cell::RefCell<T> {
+impl<T: AbstractMapDataType> AbstractMapDataType for std::sync::RwLock<T> {
     fn convert(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
-        T::convert(&*self.borrow(), data, from_version, to_version)
+        let this = self.read().unwrap();
+        T::convert(&*this, data, from_version, to_version)
     }
 }
 
@@ -252,14 +253,15 @@ impl<T: AbstractValueDataType> AbstractValueDataType for &T {
     }
 }
 
-impl<T: AbstractValueDataType> AbstractValueDataType for core::cell::RefCell<T> {
+impl<T: AbstractValueDataType> AbstractValueDataType for std::sync::RwLock<T> {
     fn convert(
         &self,
         data: &mut valence_nbt::value::ValueMut,
         from_version: DataVersion,
         to_version: DataVersion,
     ) {
-        T::convert(&*self.borrow(), data, from_version, to_version)
+        let this = self.read().unwrap();
+        T::convert(&*this, data, from_version, to_version)
     }
 }
 
