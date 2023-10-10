@@ -1,8 +1,7 @@
 use crate::{
-    AbstractMapDataType, AbstractValueDataType, DataVersion, DataWalker, JCompound, JList,
+    AbstractMapDataType, AbstractValueDataType, DataVersion, DataWalker, JCompound, JList, JValue,
 };
 use java_string::{JavaStr, JavaString};
-use valence_nbt::Compound;
 
 pub struct DataWalkerObjectListPaths<T>
 where
@@ -252,9 +251,9 @@ pub fn rename_keys(map: &mut JCompound, renamer: impl Fn(&JavaStr) -> Option<Jav
 }
 
 pub fn get_mut_multi<'a, const N: usize>(
-    map: &'a mut Compound,
+    map: &'a mut JCompound,
     keys: [&str; N],
-) -> [Option<&'a mut valence_nbt::Value>; N] {
+) -> [Option<&'a mut JValue>; N] {
     #[cold]
     #[inline(never)]
     fn non_unique_keys(keys: &[&str]) -> ! {
