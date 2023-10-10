@@ -469,7 +469,7 @@ impl<'a> IdDataType<'a> {
 
     pub fn add_converter_for_id(
         &mut self,
-        id: impl Into<String>,
+        id: impl Into<JavaString>,
         version: impl Into<DataVersion>,
         converter_func: impl MapDataConverterFunc + 'a,
     ) {
