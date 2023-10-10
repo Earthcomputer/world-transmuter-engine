@@ -1,4 +1,7 @@
-use crate::{AbstractMapDataType, AbstractValueDataType, DataVersion, DataWalker};
+use crate::{
+    AbstractMapDataType, AbstractValueDataType, DataVersion, DataWalker, JCompound, JList,
+};
+use java_string::{JavaStr, JavaString};
 use valence_nbt::Compound;
 
 pub struct DataWalkerObjectListPaths<T>
@@ -26,7 +29,7 @@ impl<T> DataWalker for DataWalkerObjectListPaths<T>
 where
     T: AbstractValueDataType,
 {
-    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
             convert_object_list_in_map(&self.typ, data, path, from_version, to_version);
         }
@@ -58,7 +61,7 @@ impl<T> DataWalker for DataWalkerMapListPaths<T>
 where
     T: AbstractMapDataType,
 {
-    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
             convert_map_list_in_map(&self.typ, data, path, from_version, to_version);
         }
@@ -90,7 +93,7 @@ impl<T> DataWalker for DataWalkerObjectTypePaths<T>
 where
     T: AbstractValueDataType,
 {
-    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
             convert_object_in_map(&self.typ, data, path, from_version, to_version);
         }
@@ -122,7 +125,7 @@ impl<T> DataWalker for DataWalkerMapTypePaths<T>
 where
     T: AbstractMapDataType,
 {
-    fn walk(&self, data: &mut Compound, from_version: DataVersion, to_version: DataVersion) {
+    fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion) {
         for path in &self.paths {
             convert_map_in_map(&self.typ, data, path, from_version, to_version);
         }
@@ -131,7 +134,7 @@ where
 
 pub fn convert_map_in_map<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
@@ -145,7 +148,7 @@ pub fn convert_map_in_map<T>(
 
 pub fn convert_map_list_in_map<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
@@ -161,7 +164,7 @@ pub fn convert_map_list_in_map<T>(
 
 pub fn convert_object_in_map<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
@@ -175,7 +178,7 @@ pub fn convert_object_in_map<T>(
 
 pub fn convert_object_list<T>(
     data_type: T,
-    data: &mut valence_nbt::List,
+    data: &mut JList,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
@@ -188,7 +191,7 @@ pub fn convert_object_list<T>(
 
 pub fn convert_object_list_in_map<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
@@ -204,7 +207,7 @@ pub fn convert_object_list_in_map<T>(
 
 pub fn convert_values_in_map<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     path: &str,
     from_version: DataVersion,
     to_version: DataVersion,
@@ -218,7 +221,7 @@ pub fn convert_values_in_map<T>(
 
 pub fn convert_values<T>(
     data_type: T,
-    data: &mut Compound,
+    data: &mut JCompound,
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
@@ -232,13 +235,13 @@ pub fn convert_values<T>(
 }
 
 #[inline]
-pub fn rename_key(map: &mut Compound, from: &str, to: impl Into<String>) {
-    if let Some(value) = map.remove(from) {
+pub fn rename_key(map: &mut JCompound, from: impl AsRef<JavaStr>, to: impl Into<JavaString>) {
+    if let Some(value) = map.remove(from.as_ref()) {
         map.insert(to.into(), value);
     }
 }
 
-pub fn rename_keys(map: &mut Compound, renamer: impl Fn(&str) -> Option<String>) {
+pub fn rename_keys(map: &mut JCompound, renamer: impl Fn(&JavaStr) -> Option<JavaString>) {
     let renames: Vec<_> = map
         .keys()
         .filter_map(|key| renamer(key).map(|new_key| (key.clone(), new_key)))

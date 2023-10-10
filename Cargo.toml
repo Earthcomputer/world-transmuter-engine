@@ -10,8 +10,9 @@ repository = "https://github.com/Earthcomputer/world-transmuter-engine"
 
 [dependencies]
 
-valence_nbt = "0.7"
+java_string = "0.1"
+valence_nbt = { version = "0.8", features = ["java_string"] }
 
 [dev-dependencies]
 
-valence_nbt = { version = "0.7", features = ["snbt"] }
+valence_nbt = { version = "0.8", features = ["java_string", "snbt"] }

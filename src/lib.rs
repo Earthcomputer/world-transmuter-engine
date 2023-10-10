@@ -3,19 +3,75 @@ mod utils;
 
 pub use crate::convert::*;
 pub use crate::utils::*;
+use java_string::JavaString;
+
+pub type JCompound = valence_nbt::Compound<JavaString>;
+pub type JList = valence_nbt::List<JavaString>;
+pub type JValue = valence_nbt::Value<JavaString>;
+pub type JValueRef<'a> = valence_nbt::value::ValueRef<'a, JavaString>;
+pub type JValueMut<'a> = valence_nbt::value::ValueMut<'a, JavaString>;
+
+pub fn value_to_java(value: valence_nbt::Value) -> JValue {
+    match value {
+        valence_nbt::Value::Byte(v) => JValue::Byte(v),
+        valence_nbt::Value::Short(v) => JValue::Short(v),
+        valence_nbt::Value::Int(v) => JValue::Int(v),
+        valence_nbt::Value::Long(v) => JValue::Long(v),
+        valence_nbt::Value::Float(v) => JValue::Float(v),
+        valence_nbt::Value::Double(v) => JValue::Double(v),
+        valence_nbt::Value::ByteArray(v) => JValue::ByteArray(v),
+        valence_nbt::Value::String(v) => JValue::String(JavaString::from(v)),
+        valence_nbt::Value::List(v) => JValue::List(list_to_java(v)),
+        valence_nbt::Value::Compound(v) => JValue::Compound(compound_to_java(v)),
+        valence_nbt::Value::IntArray(v) => JValue::IntArray(v),
+        valence_nbt::Value::LongArray(v) => JValue::LongArray(v),
+    }
+}
+
+fn list_to_java(list: valence_nbt::List) -> JList {
+    match list {
+        valence_nbt::List::End => JList::End,
+        valence_nbt::List::Byte(v) => JList::Byte(v),
+        valence_nbt::List::Short(v) => JList::Short(v),
+        valence_nbt::List::Int(v) => JList::Int(v),
+        valence_nbt::List::Long(v) => JList::Long(v),
+        valence_nbt::List::Float(v) => JList::Float(v),
+        valence_nbt::List::Double(v) => JList::Double(v),
+        valence_nbt::List::ByteArray(v) => JList::ByteArray(v),
+        valence_nbt::List::String(v) => {
+            JList::String(v.into_iter().map(JavaString::from).collect())
+        }
+        valence_nbt::List::List(v) => JList::List(v.into_iter().map(list_to_java).collect()),
+        valence_nbt::List::Compound(v) => {
+            JList::Compound(v.into_iter().map(compound_to_java).collect())
+        }
+        valence_nbt::List::IntArray(v) => JList::IntArray(v),
+        valence_nbt::List::LongArray(v) => JList::LongArray(v),
+    }
+}
+
+pub fn compound_to_java(compound: valence_nbt::Compound) -> JCompound {
+    let mut result = JCompound::with_capacity(compound.len());
+    for (key, value) in compound {
+        result.insert(JavaString::from(key), value_to_java(value));
+    }
+    result
+}
 
 #[cfg(test)]
 mod tests {
     use crate::{
         convert_map_in_map, convert_object_in_map, data_walker, map_data_converter_func,
-        value_data_converter_func, AbstractMapDataType, IdDataType, MapDataType, ObjectDataType,
+        value_data_converter_func, value_to_java, AbstractMapDataType, IdDataType, JCompound,
+        JValue, MapDataType, ObjectDataType,
     };
     use valence_nbt::Compound;
 
-    fn make_map(string: &str) -> Compound {
-        let value = valence_nbt::snbt::from_snbt_str(string).expect("snbt syntax error");
+    fn make_map(string: &str) -> JCompound {
+        let value =
+            value_to_java(valence_nbt::snbt::from_snbt_str(string).expect("snbt syntax error"));
         match value {
-            valence_nbt::Value::Compound(compound) => compound,
+            JValue::Compound(compound) => compound,
             _ => panic!("snbt was not a compound"),
         }
     }
