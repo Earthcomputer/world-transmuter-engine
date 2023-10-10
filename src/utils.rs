@@ -134,13 +134,13 @@ where
 pub fn convert_map_in_map<T>(
     data_type: T,
     data: &mut JCompound,
-    path: &str,
+    path: &(impl AsRef<JavaStr> + ?Sized),
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
 {
-    if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path) {
+    if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path.as_ref()) {
         data_type.convert(map, from_version, to_version);
     }
 }
@@ -148,13 +148,15 @@ pub fn convert_map_in_map<T>(
 pub fn convert_map_list_in_map<T>(
     data_type: T,
     data: &mut JCompound,
-    path: &str,
+    path: &(impl AsRef<JavaStr> + ?Sized),
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
 {
-    if let Some(valence_nbt::Value::List(valence_nbt::List::Compound(list))) = data.get_mut(path) {
+    if let Some(valence_nbt::Value::List(valence_nbt::List::Compound(list))) =
+        data.get_mut(path.as_ref())
+    {
         for map in list {
             data_type.convert(map, from_version, to_version);
         }
@@ -164,13 +166,13 @@ pub fn convert_map_list_in_map<T>(
 pub fn convert_object_in_map<T>(
     data_type: T,
     data: &mut JCompound,
-    path: &str,
+    path: &(impl AsRef<JavaStr> + ?Sized),
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractValueDataType,
 {
-    if let Some(obj) = data.get_mut(path) {
+    if let Some(obj) = data.get_mut(path.as_ref()) {
         data_type.convert(&mut obj.as_value_mut(), from_version, to_version);
     }
 }
@@ -191,13 +193,13 @@ pub fn convert_object_list<T>(
 pub fn convert_object_list_in_map<T>(
     data_type: T,
     data: &mut JCompound,
-    path: &str,
+    path: &(impl AsRef<JavaStr> + ?Sized),
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractValueDataType,
 {
-    if let Some(valence_nbt::Value::List(list)) = data.get_mut(path) {
+    if let Some(valence_nbt::Value::List(list)) = data.get_mut(path.as_ref()) {
         for mut obj in list.iter_mut() {
             data_type.convert(&mut obj, from_version, to_version);
         }
@@ -207,13 +209,13 @@ pub fn convert_object_list_in_map<T>(
 pub fn convert_values_in_map<T>(
     data_type: T,
     data: &mut JCompound,
-    path: &str,
+    path: &(impl AsRef<JavaStr> + ?Sized),
     from_version: DataVersion,
     to_version: DataVersion,
 ) where
     T: AbstractMapDataType,
 {
-    if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path) {
+    if let Some(valence_nbt::Value::Compound(map)) = data.get_mut(path.as_ref()) {
         convert_values(data_type, map, from_version, to_version);
     }
 }
