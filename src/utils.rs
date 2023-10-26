@@ -247,8 +247,12 @@ pub fn rename_keys(map: &mut JCompound, renamer: impl Fn(&JavaStr) -> Option<Jav
         .keys()
         .filter_map(|key| renamer(key).map(|new_key| (key.clone(), new_key)))
         .collect();
-    for (from, to) in renames {
-        rename_key(map, &from, to);
+    let renamed: Vec<_> = renames
+        .into_iter()
+        .map(|(from, to)| (to, map.remove(&from[..]).unwrap()))
+        .collect();
+    for (key, value) in renamed {
+        map.insert(key, value);
     }
 }
 
