@@ -280,7 +280,7 @@ type DynMapDataConverterFunc<'a> = Box<dyn MapDataConverterFunc + 'a>;
 pub struct MapDataType<'a> {
     pub name: String,
     structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<'a>>>,
-    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker + 'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn MapDataWalker + 'a>>>,
     structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook + 'a>>>,
 }
 structure_converters!(
@@ -293,7 +293,7 @@ version_list!(
     MapDataType,
     add_structure_walker,
     structure_walkers,
-    impl DataWalker + 'a
+    impl MapDataWalker + 'a
 );
 version_list!(
     MapDataType,
@@ -428,12 +428,90 @@ impl<'a> AbstractValueDataType for ObjectDataType<'a> {
     }
 }
 
-type WalkersById<'a> = Vec<Rc<dyn DataWalker + 'a>>;
+pub struct DynamicDataType<'a> {
+    pub name: String,
+    structure_converters: Vec<ValueDataConverter<DynValueDataConverterFunc<'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn ValueDataWalker + 'a>>>,
+    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn ValueDataHook + 'a>>>,
+}
+structure_converters!(
+    DynamicDataType,
+    structure_converters,
+    ValueDataConverter,
+    ValueDataConverterFunc
+);
+version_list!(
+    DynamicDataType,
+    add_structure_walker,
+    structure_walkers,
+    impl ValueDataWalker + 'a
+);
+version_list!(
+    DynamicDataType,
+    add_structure_hook,
+    structure_hooks,
+    impl ValueDataHook + 'a
+);
+
+impl<'a> AbstractValueDataType for DynamicDataType<'a> {
+    fn convert(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
+        for converter in &self.structure_converters {
+            if converter.get_to_version() <= from_version {
+                continue;
+            }
+            if converter.get_to_version() > to_version {
+                break;
+            }
+
+            let hooks = self
+                .structure_hooks
+                .range(..=converter.get_to_version())
+                .next_back();
+            if let Some((_, hooks)) = hooks {
+                for hook in hooks {
+                    hook.pre_hook(data, from_version, to_version);
+                }
+            }
+
+            converter.convert(data, from_version, to_version);
+
+            // possibly new data format, update hooks
+            let hooks = self.structure_hooks.range(..=to_version).next_back();
+            if let Some((_, hooks)) = hooks {
+                for hook in hooks.iter().rev() {
+                    hook.post_hook(data, from_version, to_version);
+                }
+            }
+        }
+
+        let hooks = self.structure_hooks.range(..=to_version).next_back();
+        if let Some((_, hooks)) = hooks {
+            for hook in hooks {
+                hook.pre_hook(data, from_version, to_version);
+            }
+        }
+
+        let walkers = self.structure_walkers.range(..=to_version).next_back();
+        if let Some((_, walkers)) = walkers {
+            for walker in walkers {
+                walker.walk(data, from_version, to_version);
+            }
+        }
+
+        if let Some((_, hooks)) = hooks {
+            for hook in hooks.iter().rev() {
+                hook.post_hook(data, from_version, to_version);
+            }
+        }
+    }
+}
+
+type WalkersById<'a> = Vec<Rc<dyn MapDataWalker + 'a>>;
 
 pub struct IdDataType<'a> {
     pub name: String,
     structure_converters: Vec<MapDataConverter<DynMapDataConverterFunc<'a>>>,
-    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DataWalker + 'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn MapDataWalker + 'a>>>,
     structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn MapDataHook + 'a>>>,
     walkers_by_id: BTreeMap<JavaString, BTreeMap<DataVersion, WalkersById<'a>>>,
 }
@@ -447,7 +525,7 @@ version_list!(
     IdDataType,
     add_structure_walker,
     structure_walkers,
-    impl DataWalker + 'a
+    impl MapDataWalker + 'a
 );
 version_list!(
     IdDataType,
@@ -489,7 +567,7 @@ impl<'a> IdDataType<'a> {
         &mut self,
         version: impl Into<DataVersion>,
         id: impl Into<JavaString>,
-        walker: impl DataWalker + 'a,
+        walker: impl MapDataWalker + 'a,
     ) {
         self.walkers_by_id
             .entry(id.into())
@@ -601,16 +679,16 @@ pub trait ValueDataHook {
     fn post_hook(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub trait DataWalker {
+pub trait MapDataWalker {
     fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn data_walker<'a, F>(func: F) -> impl DataWalker + 'a
+pub fn map_data_walker<'a, F>(func: F) -> impl MapDataWalker + 'a
 where
     F: Fn(&mut JCompound, DataVersion, DataVersion) + 'a,
 {
-    struct DataWalkerImpl<F>(F);
-    impl<F> DataWalker for DataWalkerImpl<F>
+    struct MapDataWalkerImpl<F>(F);
+    impl<F> MapDataWalker for MapDataWalkerImpl<F>
     where
         F: Fn(&mut JCompound, DataVersion, DataVersion),
     {
@@ -618,5 +696,25 @@ where
             (self.0)(data, from_version, to_version)
         }
     }
-    DataWalkerImpl(func)
+    MapDataWalkerImpl(func)
+}
+
+pub trait ValueDataWalker {
+    fn walk(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion);
+}
+
+pub fn value_data_walker<'a, F>(func: F) -> impl ValueDataWalker + 'a
+where
+    F: Fn(&mut JValueMut, DataVersion, DataVersion) + 'a,
+{
+    struct ValueDataWalkerImpl<F>(F);
+    impl<F> ValueDataWalker for ValueDataWalkerImpl<F>
+    where
+        F: Fn(&mut JValueMut, DataVersion, DataVersion),
+    {
+        fn walk(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
+            (self.0)(data, from_version, to_version)
+        }
+    }
+    ValueDataWalkerImpl(func)
 }

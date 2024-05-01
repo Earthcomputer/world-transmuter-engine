@@ -61,10 +61,11 @@ pub fn compound_to_java(compound: valence_nbt::Compound) -> JCompound {
 #[cfg(test)]
 mod tests {
     use crate::{
-        convert_map_in_map, convert_object_in_map, data_walker, map_data_converter_func,
+        convert_map_in_map, convert_object_in_map, map_data_converter_func, map_data_walker,
         value_data_converter_func, value_to_java, AbstractMapDataType, IdDataType, JCompound,
         JValue, MapDataType, ObjectDataType,
     };
+    use java_string::JavaString;
     use valence_nbt::Compound;
 
     fn make_map(string: &str) -> JCompound {
@@ -98,7 +99,7 @@ mod tests {
         let inner_type = simple_converted_type();
         typ.add_structure_walker(
             1,
-            data_walker(move |data, from_version, to_version| {
+            map_data_walker(move |data, from_version, to_version| {
                 convert_map_in_map(&inner_type, data, "inner", from_version, to_version)
             }),
         );
@@ -125,7 +126,7 @@ mod tests {
         typ.add_walker_for_id(
             1,
             "foo",
-            data_walker(move |data, from_version, to_version| {
+            map_data_walker(move |data, from_version, to_version| {
                 convert_object_in_map(&inner_type, data, "test", from_version, to_version);
             }),
         );
@@ -141,8 +142,8 @@ mod tests {
         ret.add_structure_converter(
             1,
             map_data_converter_func(|data, _from_version, _to_version| {
-                if let Some(valence_nbt::Value::Int(i)) = data.get("test") {
-                    data.insert("test", valence_nbt::Value::String(i.to_string()));
+                if let Some(JValue::Int(i)) = data.get("test") {
+                    data.insert("test", JValue::String(JavaString::from(i.to_string())));
                 }
             }),
         );

@@ -1,5 +1,6 @@
 use crate::{
-    AbstractMapDataType, AbstractValueDataType, DataVersion, DataWalker, JCompound, JList, JValue,
+    AbstractMapDataType, AbstractValueDataType, DataVersion, JCompound, JList, JValue,
+    MapDataWalker,
 };
 use java_string::{JavaStr, JavaString};
 
@@ -24,7 +25,7 @@ where
     }
 }
 
-impl<T> DataWalker for DataWalkerObjectListPaths<T>
+impl<T> MapDataWalker for DataWalkerObjectListPaths<T>
 where
     T: AbstractValueDataType,
 {
@@ -56,7 +57,7 @@ where
     }
 }
 
-impl<T> DataWalker for DataWalkerMapListPaths<T>
+impl<T> MapDataWalker for DataWalkerMapListPaths<T>
 where
     T: AbstractMapDataType,
 {
@@ -88,7 +89,7 @@ where
     }
 }
 
-impl<T> DataWalker for DataWalkerObjectTypePaths<T>
+impl<T> MapDataWalker for DataWalkerObjectTypePaths<T>
 where
     T: AbstractValueDataType,
 {
@@ -120,7 +121,7 @@ where
     }
 }
 
-impl<T> DataWalker for DataWalkerMapTypePaths<T>
+impl<T> MapDataWalker for DataWalkerMapTypePaths<T>
 where
     T: AbstractMapDataType,
 {
