@@ -66,7 +66,6 @@ mod tests {
         JValue, MapDataType, ObjectDataType,
     };
     use java_string::JavaString;
-    use valence_nbt::Compound;
 
     fn make_map(string: &str) -> JCompound {
         let value =
@@ -117,7 +116,7 @@ mod tests {
         inner_type.add_structure_converter(
             1,
             value_data_converter_func(|data, _from_version, _to_version| {
-                if let valence_nbt::value::ValueMut::Int(ref mut i) = data {
+                if let valence_nbt::value::ValueMut::Int(i) = data {
                     **i = 69;
                 }
             }),

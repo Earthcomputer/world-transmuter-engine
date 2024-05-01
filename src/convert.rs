@@ -1,4 +1,4 @@
-use crate::{JCompound, JValueMut};
+use crate::{JCompound, JValue, JValueMut};
 use java_string::{JavaStr, JavaString};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -164,6 +164,67 @@ impl<F: ValueDataConverterFunc> ValueDataConverter<F> {
     }
 }
 
+pub trait DynamicDataConverterFunc {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion);
+}
+
+pub fn dynamic_data_converter_func<'a, F>(func: F) -> impl DynamicDataConverterFunc + 'a
+where
+    F: Fn(&mut JValue, DataVersion, DataVersion) + 'a,
+{
+    struct DataConverterFuncImpl<F>(F);
+    impl<F> DynamicDataConverterFunc for DataConverterFuncImpl<F>
+    where
+        F: Fn(&mut JValue, DataVersion, DataVersion),
+    {
+        fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
+            (self.0)(data, from_version, to_version)
+        }
+    }
+    DataConverterFuncImpl(func)
+}
+
+impl<T: DynamicDataConverterFunc + ?Sized> DynamicDataConverterFunc for &T {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(self, data, from_version, to_version)
+    }
+}
+
+impl<T: DynamicDataConverterFunc + ?Sized> DynamicDataConverterFunc for Box<T> {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(self, data, from_version, to_version)
+    }
+}
+
+pub struct DynamicDataConverter<F: DynamicDataConverterFunc> {
+    to_version: DataVersion,
+    conversion_func: F,
+}
+
+impl<F: DynamicDataConverterFunc> DynamicDataConverter<F> {
+    pub fn new(to_version: impl Into<DataVersion>, conversion_func: F) -> Self {
+        Self {
+            to_version: to_version.into(),
+            conversion_func,
+        }
+    }
+
+    #[inline]
+    pub fn get_to_version(&self) -> DataVersion {
+        self.to_version
+    }
+
+    pub fn convert(
+        &self,
+        data: &mut JValue,
+        from_version: impl Into<DataVersion>,
+        to_version: impl Into<DataVersion>,
+    ) {
+        self.conversion_func
+            .convert(data, from_version.into(), to_version.into())
+    }
+}
+
 macro_rules! impl_traits {
     ($converter:ident, $converter_func_trait:ident) => {
         impl<F: $converter_func_trait> core::fmt::Debug for $converter<F> {
@@ -200,6 +261,7 @@ macro_rules! impl_traits {
 
 impl_traits!(MapDataConverter, MapDataConverterFunc);
 impl_traits!(ValueDataConverter, ValueDataConverterFunc);
+impl_traits!(DynamicDataConverter, DynamicDataConverterFunc);
 
 pub struct ConversionError {
     pub message: String,
@@ -236,6 +298,23 @@ impl<T: AbstractValueDataType> AbstractValueDataType for &T {
 
 impl<T: AbstractValueDataType> AbstractValueDataType for std::sync::RwLock<T> {
     fn convert(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
+        let this = self.read().unwrap();
+        T::convert(&*this, data, from_version, to_version)
+    }
+}
+
+pub trait AbstractDynamicDataType {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion);
+}
+
+impl<T: AbstractDynamicDataType> AbstractDynamicDataType for &T {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
+        T::convert(self, data, from_version, to_version)
+    }
+}
+
+impl<T: AbstractDynamicDataType> AbstractDynamicDataType for std::sync::RwLock<T> {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
         let this = self.read().unwrap();
         T::convert(&*this, data, from_version, to_version)
     }
@@ -428,29 +507,31 @@ impl<'a> AbstractValueDataType for ObjectDataType<'a> {
     }
 }
 
+type DynDynamicDataConverterFunc<'a> = Box<dyn DynamicDataConverterFunc + 'a>;
+
 pub struct DynamicDataType<'a> {
     pub name: String,
-    structure_converters: Vec<ValueDataConverter<DynValueDataConverterFunc<'a>>>,
-    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn ValueDataWalker + 'a>>>,
-    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn ValueDataHook + 'a>>>,
+    structure_converters: Vec<DynamicDataConverter<DynDynamicDataConverterFunc<'a>>>,
+    structure_walkers: BTreeMap<DataVersion, Vec<Box<dyn DynamicDataWalker + 'a>>>,
+    structure_hooks: BTreeMap<DataVersion, Vec<Box<dyn DynamicDataHook + 'a>>>,
 }
 structure_converters!(
     DynamicDataType,
     structure_converters,
-    ValueDataConverter,
-    ValueDataConverterFunc
+    DynamicDataConverter,
+    DynamicDataConverterFunc
 );
 version_list!(
     DynamicDataType,
     add_structure_walker,
     structure_walkers,
-    impl ValueDataWalker + 'a
+    impl DynamicDataWalker + 'a
 );
 version_list!(
     DynamicDataType,
     add_structure_hook,
     structure_hooks,
-    impl ValueDataHook + 'a
+    impl DynamicDataHook + 'a
 );
 
 impl<'a> DynamicDataType<'a> {
@@ -464,8 +545,8 @@ impl<'a> DynamicDataType<'a> {
     }
 }
 
-impl<'a> AbstractValueDataType for DynamicDataType<'a> {
-    fn convert(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
+impl<'a> AbstractDynamicDataType for DynamicDataType<'a> {
+    fn convert(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
             if converter.get_to_version() <= from_version {
                 continue;
@@ -690,6 +771,11 @@ pub trait ValueDataHook {
     fn post_hook(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion);
 }
 
+pub trait DynamicDataHook {
+    fn pre_hook(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion);
+    fn post_hook(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion);
+}
+
 pub trait MapDataWalker {
     fn walk(&self, data: &mut JCompound, from_version: DataVersion, to_version: DataVersion);
 }
@@ -710,22 +796,22 @@ where
     MapDataWalkerImpl(func)
 }
 
-pub trait ValueDataWalker {
-    fn walk(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion);
+pub trait DynamicDataWalker {
+    fn walk(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion);
 }
 
-pub fn value_data_walker<'a, F>(func: F) -> impl ValueDataWalker + 'a
+pub fn dynamic_data_walker<'a, F>(func: F) -> impl DynamicDataWalker + 'a
 where
-    F: Fn(&mut JValueMut, DataVersion, DataVersion) + 'a,
+    F: Fn(&mut JValue, DataVersion, DataVersion) + 'a,
 {
-    struct ValueDataWalkerImpl<F>(F);
-    impl<F> ValueDataWalker for ValueDataWalkerImpl<F>
+    struct DynamicDataWalkerImpl<F>(F);
+    impl<F> DynamicDataWalker for DynamicDataWalkerImpl<F>
     where
-        F: Fn(&mut JValueMut, DataVersion, DataVersion),
+        F: Fn(&mut JValue, DataVersion, DataVersion),
     {
-        fn walk(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
+        fn walk(&self, data: &mut JValue, from_version: DataVersion, to_version: DataVersion) {
             (self.0)(data, from_version, to_version)
         }
     }
-    ValueDataWalkerImpl(func)
+    DynamicDataWalkerImpl(func)
 }
