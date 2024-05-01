@@ -453,6 +453,17 @@ version_list!(
     impl ValueDataHook + 'a
 );
 
+impl<'a> DynamicDataType<'a> {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            structure_converters: Vec::new(),
+            structure_walkers: BTreeMap::new(),
+            structure_hooks: BTreeMap::new(),
+        }
+    }
+}
+
 impl<'a> AbstractValueDataType for DynamicDataType<'a> {
     fn convert(&self, data: &mut JValueMut, from_version: DataVersion, to_version: DataVersion) {
         for converter in &self.structure_converters {
